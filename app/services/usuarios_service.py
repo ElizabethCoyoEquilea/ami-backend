@@ -3,6 +3,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta, timezone
 import secrets
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.core.config import settings
 from app.core.security import get_password_hash, generate_verification_code, hash_verification_code
@@ -16,6 +17,13 @@ from app.schemas.usuarios.usuarios_schema import UserCreate, AdminCreate
 from app.utils.email_sender import send_verification_code_email
 
 
+try:
+    LA_PAZ_TZ = ZoneInfo("America/La_Paz")
+except ZoneInfoNotFoundError:
+    # Bolivia uses UTC-4 year-round. This fallback avoids requiring tzdata.
+    LA_PAZ_TZ = timezone(timedelta(hours=-4))
+
+
 def register_user(db: Session, user_data: UserCreate):
     existing_user = get_user_by_email(db, user_data.email)
     if existing_user:
@@ -27,7 +35,7 @@ def register_user(db: Session, user_data: UserCreate):
     hashed_password = get_password_hash(user_data.contrasena)
     verification_code = generate_verification_code()
     verification_code_hash = hash_verification_code(verification_code)
-    verification_expiration = datetime.now(timezone.utc) + timedelta(
+    verification_expiration = datetime.now(LA_PAZ_TZ) + timedelta(
         minutes=settings.VERIFICATION_CODE_EXPIRATION_MINUTES
     )
 
@@ -70,7 +78,7 @@ def register_admin(db: Session, admin_data: AdminCreate):
 
     verification_code = generate_verification_code()
     verification_code_hash = hash_verification_code(verification_code)
-    verification_expiration = datetime.now(timezone.utc) + timedelta(
+    verification_expiration = datetime.now(LA_PAZ_TZ) + timedelta(
         minutes=settings.VERIFICATION_CODE_EXPIRATION_MINUTES
     )
 
@@ -118,10 +126,12 @@ def verify_user_email(db: Session, email: str, code: str):
             detail="No existe un codigo de verificacion activo",
         )
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(LA_PAZ_TZ)
     expiration = user.codigo_verificacion_expira_en
     if expiration.tzinfo is None:
-        expiration = expiration.replace(tzinfo=timezone.utc)
+        expiration = expiration.replace(tzinfo=LA_PAZ_TZ)
+    else:
+        expiration = expiration.astimezone(LA_PAZ_TZ)
 
     if now > expiration:
         raise HTTPException(
@@ -169,7 +179,7 @@ def resend_verification_code(db: Session, email: str):
 
     verification_code = generate_verification_code()
     verification_code_hash = hash_verification_code(verification_code)
-    verification_expiration = datetime.now(timezone.utc) + timedelta(
+    verification_expiration = datetime.now(LA_PAZ_TZ) + timedelta(
         minutes=settings.VERIFICATION_CODE_EXPIRATION_MINUTES
     )
 
