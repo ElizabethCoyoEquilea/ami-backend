@@ -8,3 +8,15 @@ DB_PASSWORD=1234
 JWT_SECRET_KEY=tu-clave-secreta-super-segura-cambiar-en-produccion
 JWT_ALGORITHM=HS256
 JWT_EXPIRATION_HOURS=24
+
+# Email verification settings
+VERIFICATION_CODE_EXPIRATION_MINUTES=15
+VERIFICATION_CODE_MAX_ATTEMPTS=5
+
+# SMTP settings
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=tu-correo@dominio.com
+SMTP_PASSWORD=sjzv dvyf djtv vytu
+SMTP_USE_TLS=true
+MAIL_FROM=tu-correo@dominio.com

@@ -11,7 +11,10 @@ class User(Base):
     fecha_creacion = Column(DateTime, nullable=False, server_default=func.now())
     email = Column(String(100), unique=True, index=True, nullable=False)
     contrasena = Column(String(255), nullable=False)
-    activo = Column(Boolean, default=True)
+    activo = Column(Boolean, default=False)
+    codigo_verificacion_hash = Column(String(64), nullable=True)
+    codigo_verificacion_expira_en = Column(DateTime, nullable=True)
+    codigo_verificacion_intentos = Column(Integer, nullable=False, default=0)
 
     persona = relationship("Persona", back_populates="usuario")
     usuarios_roles = relationship("UsuarioRol", back_populates="usuario")

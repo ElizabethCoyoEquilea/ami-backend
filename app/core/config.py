@@ -19,4 +19,16 @@ class Settings:
     JWT_ALGORITHM = os.getenv("JWT_ALGORITHM")
     JWT_EXPIRATION_HOURS = int(os.getenv("JWT_EXPIRATION_HOURS"))
 
+    # Email verification settings
+    VERIFICATION_CODE_EXPIRATION_MINUTES = int(os.getenv("VERIFICATION_CODE_EXPIRATION_MINUTES", "15"))
+    VERIFICATION_CODE_MAX_ATTEMPTS = int(os.getenv("VERIFICATION_CODE_MAX_ATTEMPTS", "5"))
+
+    # SMTP settings (used to send verification codes)
+    SMTP_HOST = os.getenv("SMTP_HOST")
+    SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+    SMTP_USER = os.getenv("SMTP_USER")
+    SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
+    SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "true").lower() == "true"
+    MAIL_FROM = os.getenv("MAIL_FROM", SMTP_USER)
+
 settings = Settings()

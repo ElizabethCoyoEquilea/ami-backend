@@ -1,3 +1,4 @@
+from datetime import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -16,7 +17,15 @@ def get_role_by_id(db: Session, rol_id: int) -> Rol | None:
     return db.query(Rol).filter(Rol.id_rol == rol_id).first()
 
 
-def create_user(db: Session, user_data: UserCreate, hashed_password: str) -> User:
+def create_user(
+    db: Session,
+    user_data: UserCreate,
+    hashed_password: str,
+    activo: bool = False,
+    codigo_verificacion_hash: str | None = None,
+    codigo_verificacion_expira_en: datetime | None = None,
+    codigo_verificacion_intentos: int = 0,
+) -> User:
     try:
         persona = Persona(**user_data.persona.model_dump())
         db.add(persona)
@@ -26,6 +35,10 @@ def create_user(db: Session, user_data: UserCreate, hashed_password: str) -> Use
             email=user_data.email,
             contrasena=hashed_password,
             id_persona=persona.id_persona,
+            activo=activo,
+            codigo_verificacion_hash=codigo_verificacion_hash,
+            codigo_verificacion_expira_en=codigo_verificacion_expira_en,
+            codigo_verificacion_intentos=codigo_verificacion_intentos,
         )
 
         db.add(usuario)
@@ -37,7 +50,16 @@ def create_user(db: Session, user_data: UserCreate, hashed_password: str) -> Use
         raise
 
 
-def create_user_with_role(db: Session, user_data: UserCreate, hashed_password: str, rol_id: int) -> User:
+def create_user_with_role(
+    db: Session,
+    user_data: UserCreate,
+    hashed_password: str,
+    rol_id: int,
+    activo: bool = True,
+    codigo_verificacion_hash: str | None = None,
+    codigo_verificacion_expira_en: datetime | None = None,
+    codigo_verificacion_intentos: int = 0,
+) -> User:
     """Crea un usuario y le asigna un rol automaticamente."""
     try:
         persona = Persona(**user_data.persona.model_dump())
@@ -48,6 +70,10 @@ def create_user_with_role(db: Session, user_data: UserCreate, hashed_password: s
             email=user_data.email,
             contrasena=hashed_password,
             id_persona=persona.id_persona,
+            activo=activo,
+            codigo_verificacion_hash=codigo_verificacion_hash,
+            codigo_verificacion_expira_en=codigo_verificacion_expira_en,
+            codigo_verificacion_intentos=codigo_verificacion_intentos,
         )
 
         db.add(usuario)

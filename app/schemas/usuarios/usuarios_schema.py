@@ -64,9 +64,25 @@ class LoginSchema(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
-    usuario: UserResponse
 
 
 class TokenData(BaseModel):
     user_id: int
     email: str
+
+
+class ResendVerificationSchema(BaseModel):
+    email: EmailStr
+
+
+class VerifyUserSchema(BaseModel):
+    email: EmailStr
+    codigo: str = Field(min_length=4, max_length=12)
+
+
+class MessageResponse(BaseModel):
+    message: str
+
+
+class RegistrationResponse(BaseModel):
+    registered: bool

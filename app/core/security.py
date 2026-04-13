@@ -1,5 +1,7 @@
 from passlib.context import CryptContext
 from datetime import datetime, timedelta, timezone
+import hashlib
+import secrets
 from jose import JWTError, jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -22,6 +24,16 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return pwd_context.verify(plain_password, hashed_password)
     except Exception:
         return False
+
+
+def generate_verification_code(length: int = 6) -> str:
+    """Genera un codigo numerico de verificacion."""
+    return "".join(secrets.choice("0123456789") for _ in range(length))
+
+
+def hash_verification_code(code: str) -> str:
+    """Devuelve un hash SHA-256 del codigo de verificacion."""
+    return hashlib.sha256(code.encode("utf-8")).hexdigest()
 
 
 def create_access_token(user_id: int, email: str) -> str:
