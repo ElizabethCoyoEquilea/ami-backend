@@ -80,6 +80,10 @@ class VerifyUserSchema(BaseModel):
     codigo: str = Field(min_length=4, max_length=12)
 
 
+class ResetPasswordSchema(BaseModel):
+    email: EmailStr
+
+
 class MessageResponse(BaseModel):
     message: str
 

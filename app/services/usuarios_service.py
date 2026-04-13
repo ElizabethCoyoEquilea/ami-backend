@@ -3,6 +3,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta, timezone
 import secrets
+import string
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.core.config import settings
@@ -14,7 +15,7 @@ from app.repositories.usuarios_repository import (
     get_role_by_id,
 )
 from app.schemas.usuarios.usuarios_schema import UserCreate, AdminCreate
-from app.utils.email_sender import send_verification_code_email
+from app.utils.email_sender import send_verification_code_email, send_reset_password_email
 
 
 try:
@@ -22,6 +23,11 @@ try:
 except ZoneInfoNotFoundError:
     # Bolivia uses UTC-4 year-round. This fallback avoids requiring tzdata.
     LA_PAZ_TZ = timezone(timedelta(hours=-4))
+
+
+def _generate_random_password(length: int = 8) -> str:
+    alphabet = string.ascii_letters + string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(length))
 
 
 def register_user(db: Session, user_data: UserCreate):
@@ -196,3 +202,38 @@ def resend_verification_code(db: Session, email: str):
             detail="No se pudo enviar el nuevo codigo de verificacion",
         )
     return {"message": "Se envio un nuevo codigo de verificacion"}
+
+
+def reset_user_password(db: Session, email: str):
+    user = get_user_by_email(db, email)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuario no encontrado",
+        )
+
+    if not user.activo:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El usuario no esta activo",
+        )
+
+    new_password = _generate_random_password(8)
+    sent = send_reset_password_email(user.email, new_password)
+    if not sent:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="No se pudo enviar el correo de restablecimiento",
+        )
+
+    user.contrasena = get_password_hash(new_password)
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="No se pudo actualizar la contrasena",
+        )
+
+    return {"message": "Se envio una nueva contrasena al correo registrado"}

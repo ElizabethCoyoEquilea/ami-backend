@@ -3,9 +3,10 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import verify_password, create_access_token, get_current_user
-from app.schemas.usuarios.usuarios_schema import LoginSchema, TokenResponse
+from app.schemas.usuarios.usuarios_schema import LoginSchema, TokenResponse, ResetPasswordSchema, MessageResponse
 from app.repositories.usuarios_repository import get_user_by_email
 from app.models.usuarios.usuario import User
+from app.services.usuarios_service import reset_user_password
 
 router = APIRouter(prefix="/auth", tags=["Autenticacion"])
 
@@ -57,3 +58,8 @@ def get_me(current_user: User = Depends(get_current_user)):
             "documento": current_user.persona.documento,
         }
     }
+
+
+@router.post("/reset-password", response_model=MessageResponse, status_code=status.HTTP_200_OK)
+def reset_password(payload: ResetPasswordSchema, db: Session = Depends(get_db)):
+    return reset_user_password(db, payload.email)
