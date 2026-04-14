@@ -17,4 +17,5 @@ class User(Base):
     codigo_verificacion_intentos = Column(Integer, nullable=False, default=0)
 
     persona = relationship("Persona", back_populates="usuario")
+    cliente = relationship("Cliente", back_populates="usuario", uselist=False)
     usuarios_roles = relationship("UsuarioRol", back_populates="usuario")

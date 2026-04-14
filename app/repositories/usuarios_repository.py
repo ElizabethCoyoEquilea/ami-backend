@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.models.usuarios.persona import Persona
+from app.models.usuarios.cliente import Cliente
 from app.models.usuarios.rol import Rol
 from app.models.usuarios.usuario import User
 from app.models.usuarios.usuario_rol import UsuarioRol
@@ -15,6 +16,10 @@ def get_user_by_email(db: Session, email: str) -> User | None:
 
 def get_role_by_id(db: Session, rol_id: int) -> Rol | None:
     return db.query(Rol).filter(Rol.id_rol == rol_id).first()
+
+
+def get_cliente_by_codigo(db: Session, codigo: str) -> Cliente | None:
+    return db.query(Cliente).filter(Cliente.codigo == codigo).first()
 
 
 def create_user(
@@ -59,6 +64,7 @@ def create_user_with_role(
     codigo_verificacion_hash: str | None = None,
     codigo_verificacion_expira_en: datetime | None = None,
     codigo_verificacion_intentos: int = 0,
+    codigo_cliente: str | None = None,
 ) -> User:
     """Crea un usuario y le asigna un rol automaticamente."""
     try:
@@ -86,6 +92,14 @@ def create_user_with_role(
             activo=True,
         )
         db.add(usuario_rol)
+
+        if codigo_cliente:
+            cliente = Cliente(
+                id_usuario=usuario.id_usuario,
+                codigo=codigo_cliente,
+            )
+            db.add(cliente)
+
         db.commit()
         db.refresh(usuario)
         return usuario
