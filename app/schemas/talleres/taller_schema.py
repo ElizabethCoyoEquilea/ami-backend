@@ -112,6 +112,7 @@ class TallerUpdate(BaseModel):
 
 class TallerResponse(BaseModel):
     id_taller: int
+    id_usuario: int
     nombre: str
     descripcion: str | None
     radio_cobertura: float
