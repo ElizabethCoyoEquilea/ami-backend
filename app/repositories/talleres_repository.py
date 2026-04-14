@@ -5,9 +5,9 @@ from app.models.talleres.taller import Taller
 from app.schemas.talleres.taller_schema import TallerCreate, TallerUpdate
 
 
-def create_taller(db: Session, taller_data: TallerCreate) -> Taller:
+def create_taller(db: Session, taller_data: TallerCreate, id_usuario: int) -> Taller:
     try:
-        taller = Taller(**taller_data.model_dump())
+        taller = Taller(**taller_data.model_dump(), id_usuario=id_usuario)
         db.add(taller)
         db.commit()
         db.refresh(taller)
@@ -31,6 +31,15 @@ def get_active_taller_by_id(db: Session, id_taller: int) -> Taller | None:
 
 def list_active_talleres(db: Session) -> list[Taller]:
     return db.query(Taller).filter(Taller.activo.is_(True)).order_by(Taller.id_taller).all()
+
+
+def list_active_talleres_by_usuario(db: Session, id_usuario: int) -> list[Taller]:
+    return (
+        db.query(Taller)
+        .filter(Taller.id_usuario == id_usuario, Taller.activo.is_(True))
+        .order_by(Taller.id_taller)
+        .all()
+    )
 
 
 def update_taller(db: Session, taller: Taller, taller_data: TallerUpdate) -> Taller:

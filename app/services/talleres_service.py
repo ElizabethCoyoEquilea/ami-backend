@@ -10,6 +10,7 @@ from app.repositories.talleres_repository import (
     create_taller,
     get_active_taller_by_id,
     list_active_talleres,
+    list_active_talleres_by_usuario,
     logical_delete_taller,
     update_taller,
 )
@@ -49,11 +50,11 @@ def _validar_horario_completo(taller: Taller, taller_data: TallerUpdate) -> None
         )
 
 
-def registrar_taller(db: Session, taller_data: TallerCreate) -> Taller:
+def registrar_taller(db: Session, taller_data: TallerCreate, id_usuario: int) -> Taller:
     try:
         taller_data.estado = taller_data.estado or "cerrado"
         taller_data.activo = True
-        taller = create_taller(db, taller_data)
+        taller = create_taller(db, taller_data, id_usuario)
         return _actualizar_estado_por_horario(db, taller)
     except SQLAlchemyError:
         raise HTTPException(
@@ -64,6 +65,13 @@ def registrar_taller(db: Session, taller_data: TallerCreate) -> Taller:
 
 def listar_talleres(db: Session) -> list[Taller]:
     talleres = list_active_talleres(db)
+    for taller in talleres:
+        _actualizar_estado_por_horario(db, taller)
+    return talleres
+
+
+def listar_talleres_por_usuario(db: Session, id_usuario: int) -> list[Taller]:
+    talleres = list_active_talleres_by_usuario(db, id_usuario)
     for taller in talleres:
         _actualizar_estado_por_horario(db, taller)
     return talleres
