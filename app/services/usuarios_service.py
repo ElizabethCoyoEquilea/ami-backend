@@ -13,6 +13,7 @@ from app.repositories.usuarios_repository import (
     get_user_by_email,
     create_user_with_role,
     get_role_by_id,
+    get_cliente_by_codigo,
 )
 from app.schemas.usuarios.usuarios_schema import UserCreate, AdminCreate
 from app.utils.email_sender import send_verification_code_email, send_reset_password_email
@@ -28,6 +29,14 @@ except ZoneInfoNotFoundError:
 def _generate_random_password(length: int = 8) -> str:
     alphabet = string.ascii_letters + string.digits
     return "".join(secrets.choice(alphabet) for _ in range(length))
+
+
+def _generate_unique_client_code(db: Session) -> str:
+    alphabet = string.ascii_uppercase + string.digits
+    while True:
+        code = "".join(secrets.choice(alphabet) for _ in range(6))
+        if not get_cliente_by_codigo(db, code):
+            return code
 
 
 def register_user(db: Session, user_data: UserCreate):
@@ -112,6 +121,58 @@ def register_admin(db: Session, admin_data: AdminCreate):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No se pudo registrar el admin por un conflicto de datos",
+        )
+
+
+def register_client(db: Session, client_data: UserCreate):
+    """Registra un usuario como cliente (rol_id=3) con verificacion por correo."""
+    existing_user = get_user_by_email(db, client_data.email)
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El email ya esta registrado",
+        )
+
+    hashed_password = get_password_hash(client_data.contrasena)
+    client_role = get_role_by_id(db, 3)
+    if not client_role:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No existe el rol cliente con id_rol=3",
+        )
+
+    verification_code = generate_verification_code()
+    verification_code_hash = hash_verification_code(verification_code)
+    client_code = _generate_unique_client_code(db)
+    verification_expiration = datetime.now(LA_PAZ_TZ) + timedelta(
+        minutes=settings.VERIFICATION_CODE_EXPIRATION_MINUTES
+    )
+
+    try:
+        client_user = create_user_with_role(
+            db,
+            client_data,
+            hashed_password,
+            rol_id=3,
+            activo=False,
+            codigo_verificacion_hash=verification_code_hash,
+            codigo_verificacion_expira_en=verification_expiration,
+            codigo_verificacion_intentos=0,
+            codigo_cliente=client_code,
+        )
+
+        sent = send_verification_code_email(client_user.email, verification_code)
+        if not sent:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Usuario cliente creado, pero no se pudo enviar el correo de verificacion",
+            )
+
+        return client_user
+    except IntegrityError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se pudo registrar el cliente por un conflicto de datos",
         )
 
 
