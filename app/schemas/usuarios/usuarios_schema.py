@@ -88,5 +88,10 @@ class MessageResponse(BaseModel):
     message: str
 
 
+class ResultMessageResponse(BaseModel):
+    result: bool
+    message: str
+
+
 class RegistrationResponse(BaseModel):
     registered: bool

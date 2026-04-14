@@ -236,4 +236,4 @@ def reset_user_password(db: Session, email: str):
             detail="No se pudo actualizar la contrasena",
         )
 
-    return {"message": "Se envio una nueva contrasena al correo registrado"}
+    return {"result": True, "message": "Se envio una nueva contrasena al correo registrado"}
