@@ -9,8 +9,9 @@ from app.models.talleres.taller import Taller
 from app.repositories.talleres_repository import (
     create_taller,
     get_active_taller_by_id,
+    get_taller_by_id,
     list_active_talleres,
-    list_active_talleres_by_usuario,
+    list_talleres_by_usuario,
     logical_delete_taller,
     update_taller,
 )
@@ -71,7 +72,7 @@ def listar_talleres(db: Session) -> list[Taller]:
 
 
 def listar_talleres_por_usuario(db: Session, id_usuario: int) -> list[Taller]:
-    talleres = list_active_talleres_by_usuario(db, id_usuario)
+    talleres = list_talleres_by_usuario(db, id_usuario)
     for taller in talleres:
         _actualizar_estado_por_horario(db, taller)
     return talleres
@@ -87,9 +88,9 @@ def obtener_taller(db: Session, id_taller: int) -> Taller:
     return _actualizar_estado_por_horario(db, taller)
 
 
-def modificar_taller(db: Session, id_taller: int, taller_data: TallerUpdate) -> Taller:
-    taller = get_active_taller_by_id(db, id_taller)
-    if not taller:
+def modificar_taller(db: Session, id_taller: int, taller_data: TallerUpdate, id_usuario: int) -> Taller:
+    taller = get_taller_by_id(db, id_taller)
+    if not taller or taller.id_usuario != id_usuario:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Taller no encontrado",
