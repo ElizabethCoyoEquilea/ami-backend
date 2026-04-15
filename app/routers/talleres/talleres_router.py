@@ -46,6 +46,11 @@ def obtener_taller_por_id(id_taller: int, db: Session = Depends(get_db)):
     return obtener_taller(db, id_taller)
 
 
+@router.get("/{id_taller}/detalle", response_model=TallerResponse, status_code=status.HTTP_200_OK)
+def obtener_detalle_taller(id_taller: int, db: Session = Depends(get_db)):
+    return obtener_taller(db, id_taller)
+
+
 @router.put("/{id_taller}", response_model=TallerResponse, status_code=status.HTTP_200_OK)
 def actualizar_taller(
     id_taller: int,
