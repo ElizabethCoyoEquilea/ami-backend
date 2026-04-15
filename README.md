@@ -43,3 +43,14 @@ Plantilla de variables de entorno para configurar el proyecto en otros entornos.
 
 ### requirements.txt
 Listado de dependencias de Python necesarias para ejecutar el backend.
+
+### Comando que deben ejecutar en ese orden para instalar lo necesario para el backend
+
+python -m venv venv
+
+venv\Scripts\activate
+
+pip install -r requirements.txt
+
+### Para ejecutar el proyecto
+uvicorn app.main:app --reload
