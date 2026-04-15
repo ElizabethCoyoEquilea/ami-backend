@@ -4,8 +4,6 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.schemas.usuarios.usuarios_schema import (
     UserCreate,
-    AdminCreate,
-    UserResponse,
     VerifyUserSchema,
     ResendVerificationSchema,
     MessageResponse,
@@ -13,8 +11,6 @@ from app.schemas.usuarios.usuarios_schema import (
 )
 from app.services.usuarios_service import (
     register_user,
-    register_admin,
-    register_client,
     verify_user_email,
     resend_verification_code,
 )
@@ -23,29 +19,9 @@ from app.services.usuarios_service import (
 router = APIRouter(prefix="/usuarios", tags=["Usuarios"])
 
 
-@router.post("/", response_model=RegistrationResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=RegistrationResponse, status_code=status.HTTP_201_CREATED)
 def create_user(user_data: UserCreate, db: Session = Depends(get_db)):
     register_user(db, user_data)
-    return {"registered": True}
-
-
-@router.post("/register/admin", response_model=RegistrationResponse, status_code=status.HTTP_201_CREATED)
-def create_admin(admin_data: AdminCreate, db: Session = Depends(get_db)):
-    """
-    Registra un nuevo administrador (usuario con rol id=1).
-    El rol se asigna automaticamente.
-    """
-    register_admin(db, admin_data)
-    return {"registered": True}
-
-
-@router.post("/register/client", response_model=RegistrationResponse, status_code=status.HTTP_201_CREATED)
-def create_client(client_data: UserCreate, db: Session = Depends(get_db)):
-    """
-    Registra un nuevo cliente (usuario con rol id=3).
-    El rol se asigna automaticamente y requiere verificacion de correo.
-    """
-    register_client(db, client_data)
     return {"registered": True}
 
 

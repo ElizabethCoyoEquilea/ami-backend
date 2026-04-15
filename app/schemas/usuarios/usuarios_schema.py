@@ -38,11 +38,6 @@ class UserCreate(UserBase):
     persona: PersonaCreate
 
 
-class AdminCreate(UserBase):
-    contrasena: str = Field(min_length=6, max_length=255)
-    persona: PersonaCreate
-
-
 class UserResponse(UserBase):
     id_usuario: int
     activo: bool

@@ -2,6 +2,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.models.talleres.taller import Taller
+from app.models.usuarios.usuario_rol import UsuarioRol
 from app.schemas.talleres.taller_schema import TallerCreate, TallerUpdate
 
 
@@ -9,6 +10,16 @@ def create_taller(db: Session, taller_data: TallerCreate, id_usuario: int) -> Ta
     try:
         taller = Taller(**taller_data.model_dump(), id_usuario=id_usuario)
         db.add(taller)
+        db.flush()
+
+        usuario_rol = UsuarioRol(
+            id_usuario=id_usuario,
+            id_rol=1,
+            id_taller=taller.id_taller,
+            activo=True,
+        )
+        db.add(usuario_rol)
+
         db.commit()
         db.refresh(taller)
         return taller
