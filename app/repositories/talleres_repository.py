@@ -33,10 +33,10 @@ def list_active_talleres(db: Session) -> list[Taller]:
     return db.query(Taller).filter(Taller.activo.is_(True)).order_by(Taller.id_taller).all()
 
 
-def list_active_talleres_by_usuario(db: Session, id_usuario: int) -> list[Taller]:
+def list_talleres_by_usuario(db: Session, id_usuario: int) -> list[Taller]:
     return (
         db.query(Taller)
-        .filter(Taller.id_usuario == id_usuario, Taller.activo.is_(True))
+        .filter(Taller.id_usuario == id_usuario)
         .order_by(Taller.id_taller)
         .all()
     )

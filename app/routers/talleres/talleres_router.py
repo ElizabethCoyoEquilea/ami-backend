@@ -47,8 +47,13 @@ def obtener_taller_por_id(id_taller: int, db: Session = Depends(get_db)):
 
 
 @router.put("/{id_taller}", response_model=TallerResponse, status_code=status.HTTP_200_OK)
-def actualizar_taller(id_taller: int, taller_data: TallerUpdate, db: Session = Depends(get_db)):
-    return modificar_taller(db, id_taller, taller_data)
+def actualizar_taller(
+    id_taller: int,
+    taller_data: TallerUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return modificar_taller(db, id_taller, taller_data, current_user.id_usuario)
 
 
 @router.delete("/{id_taller}", response_model=MessageResponse, status_code=status.HTTP_200_OK)
