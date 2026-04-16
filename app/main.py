@@ -5,6 +5,7 @@ from app.core.database import engine, Base
 from app.routers.usuarios.usuarios_router import router as usuarios_router
 from app.routers.usuarios.auth_router import router as auth_router
 from app.routers.talleres.talleres_router import router as talleres_router
+from app.routers.talleres.catalogo_servicio_router import router as catalogo_servicio_router
 from app.seeds import run_seeds
 import app.models
 
@@ -30,6 +31,7 @@ def startup() -> None:
 app.include_router(auth_router)
 app.include_router(usuarios_router)
 app.include_router(talleres_router)
+app.include_router(catalogo_servicio_router)
 
 @app.get("/")
 def root():
