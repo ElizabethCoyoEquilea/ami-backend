@@ -90,3 +90,19 @@ class ResultMessageResponse(BaseModel):
 
 class RegistrationResponse(BaseModel):
     registered: bool
+
+
+class CreateClientResponse(BaseModel):
+    result: bool
+    message: str
+    id_usuario: int
+    id_rol: int
+    id_cliente: int
+    codigo_cliente: str
+
+
+class ClientAssignmentResponse(BaseModel):
+    is_client: bool
+    id_usuario: int
+    id_cliente: int | None = None
+    codigo_cliente: str | None = None
