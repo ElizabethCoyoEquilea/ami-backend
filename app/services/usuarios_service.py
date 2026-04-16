@@ -7,9 +7,16 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.core.config import settings
 from app.core.security import get_password_hash, generate_verification_code, hash_verification_code
+from app.models.usuarios.cliente import Cliente
+from app.models.usuarios.usuario import User
+from app.models.usuarios.usuario_rol import UsuarioRol
 from app.repositories.usuarios_repository import (
     create_user,
+    get_active_user_role,
+    get_cliente_by_codigo,
+    get_cliente_by_user_id,
     get_user_by_email,
+    get_role_by_id,
 )
 from app.schemas.usuarios.usuarios_schema import UserCreate
 from app.utils.email_sender import send_verification_code_email, send_reset_password_email
@@ -183,3 +190,94 @@ def reset_user_password(db: Session, email: str):
         )
 
     return {"result": True, "message": "Se envio una nueva contrasena al correo registrado"}
+
+
+def _generate_cliente_code(length: int = 8) -> str:
+    alphabet = string.ascii_uppercase + string.digits
+    return "CLI" + "".join(secrets.choice(alphabet) for _ in range(length))
+
+
+def create_client_for_current_user(db: Session, current_user: User):
+    cliente_role_id = 3
+
+    role = get_role_by_id(db, cliente_role_id)
+    if not role or not role.activo:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No existe el rol CLIENTE activo (id_rol=3)",
+        )
+
+    existing_cliente = get_cliente_by_user_id(db, current_user.id_usuario)
+    if existing_cliente:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El usuario ya tiene un registro de cliente",
+        )
+
+    if get_active_user_role(db, current_user.id_usuario, cliente_role_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El usuario ya tiene asignado el rol CLIENTE",
+        )
+
+    codigo_cliente = None
+    for _ in range(10):
+        candidate = _generate_cliente_code()
+        if not get_cliente_by_codigo(db, candidate):
+            codigo_cliente = candidate
+            break
+
+    if not codigo_cliente:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="No se pudo generar un codigo de cliente unico",
+        )
+
+    usuario_rol = UsuarioRol(
+        id_usuario=current_user.id_usuario,
+        id_rol=cliente_role_id,
+        activo=True,
+    )
+    cliente = Cliente(
+        id_usuario=current_user.id_usuario,
+        codigo=codigo_cliente,
+    )
+
+    db.add(usuario_rol)
+    db.add(cliente)
+    try:
+        db.commit()
+        db.refresh(cliente)
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="No se pudo crear el cliente",
+        )
+
+    return {
+        "result": True,
+        "message": "Rol CLIENTE asignado y cliente creado correctamente",
+        "id_usuario": current_user.id_usuario,
+        "id_rol": cliente_role_id,
+        "id_cliente": cliente.id_cliente,
+        "codigo_cliente": cliente.codigo,
+    }
+
+
+def check_current_user_is_client(db: Session, current_user: User):
+    cliente = get_cliente_by_user_id(db, current_user.id_usuario)
+    if not cliente:
+        return {
+            "is_client": False,
+            "id_usuario": current_user.id_usuario,
+            "id_cliente": None,
+            "codigo_cliente": None,
+        }
+
+    return {
+        "is_client": True,
+        "id_usuario": current_user.id_usuario,
+        "id_cliente": cliente.id_cliente,
+        "codigo_cliente": cliente.codigo,
+    }

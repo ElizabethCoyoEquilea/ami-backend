@@ -22,6 +22,22 @@ def get_cliente_by_codigo(db: Session, codigo: str) -> Cliente | None:
     return db.query(Cliente).filter(Cliente.codigo == codigo).first()
 
 
+def get_cliente_by_user_id(db: Session, user_id: int) -> Cliente | None:
+    return db.query(Cliente).filter(Cliente.id_usuario == user_id).first()
+
+
+def get_active_user_role(db: Session, user_id: int, rol_id: int) -> UsuarioRol | None:
+    return (
+        db.query(UsuarioRol)
+        .filter(
+            UsuarioRol.id_usuario == user_id,
+            UsuarioRol.id_rol == rol_id,
+            UsuarioRol.activo == True,
+        )
+        .first()
+    )
+
+
 def create_user(
     db: Session,
     user_data: UserCreate,

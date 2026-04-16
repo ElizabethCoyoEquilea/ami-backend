@@ -3,10 +3,10 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import verify_password, create_access_token, get_current_user
-from app.schemas.usuarios.usuarios_schema import LoginSchema, TokenResponse, ResetPasswordSchema, ResultMessageResponse
+from app.schemas.usuarios.usuarios_schema import LoginSchema, TokenResponse, ResetPasswordSchema, ResultMessageResponse, CreateClientResponse, ClientAssignmentResponse
 from app.repositories.usuarios_repository import get_user_by_email
 from app.models.usuarios.usuario import User
-from app.services.usuarios_service import reset_user_password
+from app.services.usuarios_service import reset_user_password, create_client_for_current_user, check_current_user_is_client
 
 router = APIRouter(prefix="/auth", tags=["Autenticacion"])
 
@@ -63,3 +63,29 @@ def get_me(current_user: User = Depends(get_current_user)):
 @router.post("/reset-password", response_model=ResultMessageResponse, status_code=status.HTTP_200_OK)
 def reset_password(payload: ResetPasswordSchema, db: Session = Depends(get_db)):
     return reset_user_password(db, payload.email)
+
+
+@router.post("/create-client", response_model=CreateClientResponse, status_code=status.HTTP_201_CREATED)
+def create_client(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Asigna el rol CLIENTE (id_rol=3) al usuario autenticado y crea su registro en cliente.
+
+    Requiere: Authorization: Bearer <token>
+    """
+    return create_client_for_current_user(db, current_user)
+
+
+@router.get("/is-client", response_model=ClientAssignmentResponse, status_code=status.HTTP_200_OK)
+def is_client(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Verifica si el usuario autenticado tiene un registro en la tabla cliente.
+
+    Requiere: Authorization: Bearer <token>
+    """
+    return check_current_user_is_client(db, current_user)
