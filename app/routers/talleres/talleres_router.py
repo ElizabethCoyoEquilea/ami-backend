@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.usuarios.usuario import User
-from app.schemas.talleres.taller_schema import TallerCreate, TallerResponse, TallerUpdate
+from app.schemas.talleres.taller_schema import TallerCreate, TallerResponse, TallerUpdate, ListarProveedoresResponse
 from app.schemas.usuarios.usuarios_schema import MessageResponse
 from app.services.talleres_service import (
     eliminar_taller,
@@ -13,6 +13,7 @@ from app.services.talleres_service import (
     modificar_taller,
     obtener_taller,
     registrar_taller,
+    listar_proveedores_taller,
 )
 
 
@@ -64,3 +65,16 @@ def actualizar_taller(
 @router.delete("/{id_taller}", response_model=MessageResponse, status_code=status.HTTP_200_OK)
 def borrar_taller(id_taller: int, db: Session = Depends(get_db)):
     return eliminar_taller(db, id_taller)
+
+
+@router.get("/{id_taller}/proveedores", response_model=ListarProveedoresResponse, status_code=status.HTTP_200_OK)
+def obtener_proveedores_taller(
+    id_taller: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Lista los proveedores de servicio asignados a un taller específico.
+    
+    Requiere: Authorization: Bearer <token>
+    """
+    return listar_proveedores_taller(db, id_taller)

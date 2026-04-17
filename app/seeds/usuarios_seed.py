@@ -67,16 +67,16 @@ def seed_usuarios(db: Session) -> None:
             existente.codigo_verificacion_intentos = 0
             user_id = existente.id_usuario
 
-        rol_admin = (
-            db.query(UsuarioRol)
-            .filter(UsuarioRol.id_usuario == user_id, UsuarioRol.id_rol == 1)
-            .first()
-        )
-        if not rol_admin:
-            db.add(
-                UsuarioRol(
-                    id_usuario=user_id,
-                    id_rol=1,
-                    activo=True,
-                )
-            )
+        # rol_admin = (
+        #     db.query(UsuarioRol)
+        #     .filter(UsuarioRol.id_usuario == user_id, UsuarioRol.id_rol == 1)
+        #     .first()
+        # )
+        # if not rol_admin:
+        #     db.add(
+        #         UsuarioRol(
+        #             id_usuario=user_id,
+        #             id_rol=1,
+        #             activo=True,
+        #         )
+        #     )

@@ -23,6 +23,7 @@ class Taller(Base):
 
     usuario = relationship("User", back_populates="talleres")
     catalogo_servicios = relationship("CatalogoServicio", back_populates="taller")
+    proveedores_servicio = relationship("ProveedorServicio", back_populates="taller")
 
     __table_args__ = (
         CheckConstraint("radio_cobertura >= 0", name="ck_taller_radio_cobertura_no_negativo"),

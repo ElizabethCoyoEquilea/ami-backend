@@ -31,4 +31,10 @@ class Settings:
     SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "true").lower() == "true"
     MAIL_FROM = os.getenv("MAIL_FROM", SMTP_USER)
 
+    INVITATION_ACCEPT_URL_BASE = os.getenv(
+        "INVITATION_ACCEPT_URL_BASE",
+        "http://localhost:8000/auth/talleres/invitaciones/aceptar",
+    )
+    INVITATION_EXPIRATION_HOURS = int(os.getenv("INVITATION_EXPIRATION_HOURS", "48"))
+
 settings = Settings()

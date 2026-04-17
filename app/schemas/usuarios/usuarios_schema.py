@@ -106,3 +106,22 @@ class ClientAssignmentResponse(BaseModel):
     id_usuario: int
     id_cliente: int | None = None
     codigo_cliente: str | None = None
+
+
+class TallerInvitationCreateSchema(BaseModel):
+    email: EmailStr
+    id_taller: int = Field(gt=0)
+
+
+class TallerInvitationCreateResponse(BaseModel):
+    result: bool
+    message: str
+    invitation_link: str
+
+
+class TallerInvitationAcceptResponse(BaseModel):
+    result: bool
+    message: str
+    id_usuario: int
+    id_taller: int
+    id_rol: int

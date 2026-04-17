@@ -4,12 +4,15 @@ from datetime import datetime, timedelta, timezone
 import secrets
 import string
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from jose import JWTError, jwt
 
 from app.core.config import settings
 from app.core.security import get_password_hash, generate_verification_code, hash_verification_code
 from app.models.usuarios.cliente import Cliente
+from app.models.usuarios.proveedor_servicio import ProveedorServicio
 from app.models.usuarios.usuario import User
 from app.models.usuarios.usuario_rol import UsuarioRol
+from app.repositories.talleres_repository import get_active_taller_by_id
 from app.repositories.usuarios_repository import (
     create_user,
     get_active_user_role,
@@ -19,7 +22,12 @@ from app.repositories.usuarios_repository import (
     get_role_by_id,
 )
 from app.schemas.usuarios.usuarios_schema import UserCreate
-from app.utils.email_sender import send_verification_code_email, send_reset_password_email
+from app.utils.email_sender import (
+    send_verification_code_email,
+    send_reset_password_email,
+    send_taller_invitation_email,
+    send_taller_invitation_accepted_email,
+)
 
 
 try:
@@ -27,6 +35,9 @@ try:
 except ZoneInfoNotFoundError:
     # Bolivia uses UTC-4 year-round. This fallback avoids requiring tzdata.
     LA_PAZ_TZ = timezone(timedelta(hours=-4))
+
+
+PROVIDER_ROLE_ID = 2
 
 
 def _generate_random_password(length: int = 8) -> str:
@@ -280,4 +291,228 @@ def check_current_user_is_client(db: Session, current_user: User):
         "id_usuario": current_user.id_usuario,
         "id_cliente": cliente.id_cliente,
         "codigo_cliente": cliente.codigo,
+    }
+
+
+def _create_taller_invitation_token(
+    invited_user_id: int,
+    email: str,
+    id_taller: int,
+    inviter_user_id: int,
+) -> str:
+    expire = datetime.now(timezone.utc) + timedelta(hours=settings.INVITATION_EXPIRATION_HOURS)
+    payload = {
+        "sub": str(invited_user_id),
+        "email": email,
+        "id_taller": id_taller,
+        "id_usuario_invita": inviter_user_id,
+        "scope": "taller_invitation",
+        "exp": expire,
+        "iat": datetime.now(timezone.utc),
+    }
+    return jwt.encode(payload, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+
+
+def _decode_taller_invitation_token(token: str) -> dict:
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token de invitacion invalido o expirado",
+        )
+
+    if payload.get("scope") != "taller_invitation":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token de invitacion invalido",
+        )
+
+    try:
+        return {
+            "id_usuario": int(payload.get("sub")),
+            "email": str(payload.get("email")),
+            "id_taller": int(payload.get("id_taller")),
+            "id_usuario_invita": int(payload.get("id_usuario_invita")),
+        }
+    except (TypeError, ValueError):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token de invitacion invalido",
+        )
+
+
+def send_taller_invitation(db: Session, current_user: User, email: str, id_taller: int):
+    invited_user = get_user_by_email(db, email)
+    if not invited_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No existe un usuario con ese correo",
+        )
+
+    if not invited_user.activo:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El usuario invitado no esta activo",
+        )
+
+    provider_role = get_role_by_id(db, PROVIDER_ROLE_ID)
+    if not provider_role or not provider_role.activo:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No existe el rol PROVEEDOR DE SERVICIO activo (id_rol=2)",
+        )
+
+    taller = get_active_taller_by_id(db, id_taller)
+    if not taller or taller.id_usuario != current_user.id_usuario:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Taller no encontrado para el usuario autenticado",
+        )
+
+    existing_assignment = (
+        db.query(UsuarioRol)
+        .filter(
+            UsuarioRol.id_usuario == invited_user.id_usuario,
+            UsuarioRol.id_rol == PROVIDER_ROLE_ID,
+            UsuarioRol.id_taller == id_taller,
+            UsuarioRol.activo == True,
+        )
+        .first()
+    )
+    if existing_assignment:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El usuario ya es proveedor de servicio en este taller",
+        )
+
+    invitation_token = _create_taller_invitation_token(
+        invited_user_id=invited_user.id_usuario,
+        email=invited_user.email,
+        id_taller=taller.id_taller,
+        inviter_user_id=current_user.id_usuario,
+    )
+    invitation_link = f"{settings.INVITATION_ACCEPT_URL_BASE}?token={invitation_token}"
+
+    sent = send_taller_invitation_email(
+        to_email=invited_user.email,
+        invitation_link=invitation_link,
+        taller_nombre=taller.nombre,
+        taller_direccion=taller.direccion,
+    )
+    if not sent:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="No se pudo enviar el correo de invitacion",
+        )
+
+    return {
+        "result": True,
+        "message": "Invitacion enviada correctamente",
+        "invitation_link": invitation_link,
+    }
+
+
+def accept_taller_invitation(db: Session, token: str):
+    invitation_data = _decode_taller_invitation_token(token)
+
+    invited_user = get_user_by_email(db, invitation_data["email"])
+    if not invited_user or invited_user.id_usuario != invitation_data["id_usuario"]:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuario invitado no encontrado",
+        )
+
+    if not invited_user.activo:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El usuario invitado no esta activo",
+        )
+
+    provider_role = get_role_by_id(db, PROVIDER_ROLE_ID)
+    if not provider_role or not provider_role.activo:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No existe el rol PROVEEDOR DE SERVICIO activo (id_rol=2)",
+        )
+
+    taller = get_active_taller_by_id(db, invitation_data["id_taller"])
+    if not taller:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Taller no encontrado",
+        )
+
+    if taller.id_usuario != invitation_data["id_usuario_invita"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La invitacion no coincide con el propietario del taller",
+        )
+
+    assignment = (
+        db.query(UsuarioRol)
+        .filter(
+            UsuarioRol.id_usuario == invited_user.id_usuario,
+            UsuarioRol.id_rol == PROVIDER_ROLE_ID,
+            UsuarioRol.id_taller == taller.id_taller,
+        )
+        .first()
+    )
+
+    if assignment:
+        assignment.activo = True
+    else:
+        assignment = UsuarioRol(
+            id_usuario=invited_user.id_usuario,
+            id_rol=PROVIDER_ROLE_ID,
+            id_taller=taller.id_taller,
+            activo=True,
+        )
+        db.add(assignment)
+
+    proveedor_servicio = (
+        db.query(ProveedorServicio)
+        .filter(
+            ProveedorServicio.id_usuario == invited_user.id_usuario,
+            ProveedorServicio.id_taller == taller.id_taller,
+        )
+        .first()
+    )
+
+    if not proveedor_servicio:
+        proveedor_servicio = ProveedorServicio(
+            id_usuario=invited_user.id_usuario,
+            id_taller=taller.id_taller,
+            estado=None,
+            especialidad=None,
+        )
+        db.add(proveedor_servicio)
+
+    try:
+        db.commit()
+        db.refresh(assignment)
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="No se pudo aceptar la invitacion",
+        )
+
+    sent = send_taller_invitation_accepted_email(
+        to_email=invited_user.email,
+        taller_nombre=taller.nombre,
+        taller_direccion=taller.direccion,
+    )
+    if not sent:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Invitacion aceptada, pero no se pudo enviar el correo de confirmacion",
+        )
+
+    return {
+        "result": True,
+        "message": "Invitacion aceptada correctamente. Ahora eres proveedor de servicio de este taller",
+        "id_usuario": invited_user.id_usuario,
+        "id_taller": taller.id_taller,
+        "id_rol": PROVIDER_ROLE_ID,
     }

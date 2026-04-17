@@ -3,10 +3,26 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.security import verify_password, create_access_token, get_current_user
-from app.schemas.usuarios.usuarios_schema import LoginSchema, TokenResponse, ResetPasswordSchema, ResultMessageResponse, CreateClientResponse, ClientAssignmentResponse
+from app.schemas.usuarios.usuarios_schema import (
+    LoginSchema,
+    TokenResponse,
+    ResetPasswordSchema,
+    ResultMessageResponse,
+    CreateClientResponse,
+    ClientAssignmentResponse,
+    TallerInvitationCreateSchema,
+    TallerInvitationCreateResponse,
+    TallerInvitationAcceptResponse,
+)
 from app.repositories.usuarios_repository import get_user_by_email
 from app.models.usuarios.usuario import User
-from app.services.usuarios_service import reset_user_password, create_client_for_current_user, check_current_user_is_client
+from app.services.usuarios_service import (
+    reset_user_password,
+    create_client_for_current_user,
+    check_current_user_is_client,
+    send_taller_invitation,
+    accept_taller_invitation,
+)
 
 router = APIRouter(prefix="/auth", tags=["Autenticacion"])
 
@@ -89,3 +105,27 @@ def is_client(
     Requiere: Authorization: Bearer <token>
     """
     return check_current_user_is_client(db, current_user)
+
+
+@router.post(
+    "/talleres/invitaciones",
+    response_model=TallerInvitationCreateResponse,
+    status_code=status.HTTP_200_OK,
+)
+def create_taller_invitation(
+    payload: TallerInvitationCreateSchema,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Envia una invitacion por correo para que un usuario sea proveedor de un taller."""
+    return send_taller_invitation(db, current_user, payload.email, payload.id_taller)
+
+
+@router.get(
+    "/talleres/invitaciones/aceptar",
+    response_model=TallerInvitationAcceptResponse,
+    status_code=status.HTTP_200_OK,
+)
+def accept_invitation(token: str, db: Session = Depends(get_db)):
+    """Acepta una invitacion de taller usando el token recibido por correo."""
+    return accept_taller_invitation(db, token)
