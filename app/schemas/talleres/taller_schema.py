@@ -127,3 +127,44 @@ class TallerResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ==============================
+# SCHEMAS PROVEEDOR SERVICIO
+# ==============================
+
+class PersonaBasicResponse(BaseModel):
+    id_persona: int
+    nombre_completo: str
+    telefono: str | None
+    documento: str | None
+
+    class Config:
+        from_attributes = True
+
+
+class UsuarioBasicResponse(BaseModel):
+    id_usuario: int
+    email: str
+    persona: PersonaBasicResponse
+
+    class Config:
+        from_attributes = True
+
+
+class ProveedorServicioResponse(BaseModel):
+    id_proveedor: int
+    id_usuario: int
+    id_taller: int
+    estado: str | None
+    especialidad: str | None
+    usuario: UsuarioBasicResponse
+
+    class Config:
+        from_attributes = True
+
+
+class ListarProveedoresResponse(BaseModel):
+    id_taller: int
+    total_proveedores: int
+    proveedores: list[ProveedorServicioResponse]

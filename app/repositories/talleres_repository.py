@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.models.talleres.taller import Taller
 from app.models.usuarios.usuario_rol import UsuarioRol
+from app.models.usuarios.proveedor_servicio import ProveedorServicio
 from app.schemas.talleres.taller_schema import TallerCreate, TallerUpdate
 
 
@@ -76,3 +77,11 @@ def logical_delete_taller(db: Session, taller: Taller) -> Taller:
     except SQLAlchemyError:
         db.rollback()
         raise
+
+
+def get_proveedores_by_taller(db: Session, id_taller: int) -> list[ProveedorServicio]:
+    return (
+        db.query(ProveedorServicio)
+        .filter(ProveedorServicio.id_taller == id_taller)
+        .all()
+    )

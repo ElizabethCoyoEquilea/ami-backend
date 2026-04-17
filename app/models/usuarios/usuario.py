@@ -20,3 +20,4 @@ class User(Base):
     cliente = relationship("Cliente", back_populates="usuario", uselist=False)
     usuarios_roles = relationship("UsuarioRol", back_populates="usuario")
     talleres = relationship("Taller", back_populates="usuario")
+    proveedores_servicio = relationship("ProveedorServicio", back_populates="usuario")

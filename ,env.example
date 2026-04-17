@@ -20,3 +20,7 @@ SMTP_USER=tu-correo@dominio.com
 SMTP_PASSWORD=sjzv dvyf djtv vytu
 SMTP_USE_TLS=true
 MAIL_FROM=tu-correo@dominio.com
+
+# Invitation settings
+INVITATION_ACCEPT_URL_BASE=http://localhost:8000/auth/talleres/invitaciones/aceptar
+INVITATION_EXPIRATION_HOURS=48

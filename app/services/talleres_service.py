@@ -14,6 +14,7 @@ from app.repositories.talleres_repository import (
     list_talleres_by_usuario,
     logical_delete_taller,
     update_taller,
+    get_proveedores_by_taller,
 )
 from app.schemas.talleres.taller_schema import TallerCreate, TallerUpdate
 
@@ -124,3 +125,19 @@ def eliminar_taller(db: Session, id_taller: int) -> dict[str, str]:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="No se pudo eliminar el taller",
         )
+
+
+def listar_proveedores_taller(db: Session, id_taller: int) -> dict:
+    taller = get_active_taller_by_id(db, id_taller)
+    if not taller:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Taller no encontrado",
+        )
+
+    proveedores = get_proveedores_by_taller(db, id_taller)
+    return {
+        "id_taller": id_taller,
+        "total_proveedores": len(proveedores),
+        "proveedores": proveedores,
+    }
