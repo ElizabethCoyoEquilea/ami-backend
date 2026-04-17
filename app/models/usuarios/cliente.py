@@ -12,3 +12,4 @@ class Cliente(Base):
     codigo = Column(String(20), nullable=False, unique=True, index=True)
 
     usuario = relationship("User", back_populates="cliente")
+    vehiculos = relationship("Vehiculo", back_populates="cliente", cascade="all, delete-orphan")
