@@ -18,3 +18,4 @@ class CatalogoServicio(Base):
     fecha_creacion = Column(DateTime, nullable=False, server_default=func.now())
 
     taller = relationship("Taller", back_populates="catalogo_servicios")
+    asignaciones = relationship("Asignacion", back_populates="catalogo_servicio", cascade="all, delete-orphan")

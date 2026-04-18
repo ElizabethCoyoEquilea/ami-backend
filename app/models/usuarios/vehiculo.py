@@ -15,3 +15,4 @@ class Vehiculo(Base):
     placa = Column(String(20), nullable=False, unique=True, index=True)
 
     cliente = relationship("Cliente", back_populates="vehiculos")
+    solicitudes = relationship("Solicitud", back_populates="vehiculo", cascade="all, delete-orphan")

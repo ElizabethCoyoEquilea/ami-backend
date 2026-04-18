@@ -7,3 +7,6 @@ from .usuarios.rol import Rol
 from .usuarios.usuario_rol import UsuarioRol
 from .talleres.taller import Taller
 from .talleres.catalogo_servicio import CatalogoServicio
+from .solicitudes.solicitud import Solicitud
+from .solicitudes.cotizacion import Cotizacion
+from .solicitudes.asignacion import Asignacion
