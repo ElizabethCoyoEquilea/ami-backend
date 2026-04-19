@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.usuarios.usuario import User
+from app.schemas.solicitudes.asignacion_schema import AsignacionConSolicitudResponse
 from app.schemas.talleres.taller_schema import TallerCreate, TallerResponse, TallerUpdate, ListarProveedoresResponse
 from app.schemas.usuarios.usuarios_schema import MessageResponse
 from app.services.talleres_service import (
@@ -14,6 +15,7 @@ from app.services.talleres_service import (
     obtener_taller,
     registrar_taller,
     listar_proveedores_taller,
+    listar_asignaciones_taller,
 )
 
 
@@ -77,4 +79,17 @@ def obtener_proveedores_taller(
     
     Requiere: Authorization: Bearer <token>
     """
-    return listar_proveedores_taller(db, id_taller)
+    return listar_proveedores_taller(db, id_taller, current_user.id_usuario)
+
+
+@router.get(
+    "/{id_taller}/asignaciones",
+    response_model=list[AsignacionConSolicitudResponse],
+    status_code=status.HTTP_200_OK,
+)
+def obtener_asignaciones_taller(
+    id_taller: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return listar_asignaciones_taller(db, id_taller, current_user.id_usuario)

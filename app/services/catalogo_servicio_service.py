@@ -60,9 +60,13 @@ def listar_catalogo_servicios(db: Session, id_usuario: int) -> list[CatalogoServ
 def listar_catalogo_servicios_por_taller(
     db: Session,
     id_taller: int,
-    id_usuario: int,
 ) -> list[CatalogoServicio]:
-    _obtener_taller_del_usuario(db, id_taller, id_usuario)
+    taller = get_active_taller_by_id(db, id_taller)
+    if not taller:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Taller no encontrado",
+        )
     return list_active_catalogo_servicios_by_taller(db, id_taller)
 
 
