@@ -1,7 +1,9 @@
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
+from app.models.solicitudes.asignacion import Asignacion
 from app.models.talleres.taller import Taller
+from app.models.usuarios.usuario import User
 from app.models.usuarios.usuario_rol import UsuarioRol
 from app.models.usuarios.proveedor_servicio import ProveedorServicio
 from app.schemas.talleres.taller_schema import TallerCreate, TallerUpdate
@@ -82,6 +84,30 @@ def logical_delete_taller(db: Session, taller: Taller) -> Taller:
 def get_proveedores_by_taller(db: Session, id_taller: int) -> list[ProveedorServicio]:
     return (
         db.query(ProveedorServicio)
-        .filter(ProveedorServicio.id_taller == id_taller)
+        .join(
+            UsuarioRol,
+            (UsuarioRol.id_usuario == ProveedorServicio.id_usuario)
+            & (UsuarioRol.id_taller == ProveedorServicio.id_taller),
+        )
+        .options(
+            joinedload(ProveedorServicio.usuario)
+            .joinedload(User.persona)
+        )
+        .filter(
+            ProveedorServicio.id_taller == id_taller,
+            UsuarioRol.id_rol == 2,
+            UsuarioRol.activo.is_(True),
+        )
+        .order_by(ProveedorServicio.id_proveedor)
+        .all()
+    )
+
+
+def list_asignaciones_by_taller(db: Session, id_taller: int) -> list[Asignacion]:
+    return (
+        db.query(Asignacion)
+        .options(joinedload(Asignacion.solicitud))
+        .filter(Asignacion.id_taller == id_taller)
+        .order_by(Asignacion.id_asignacion)
         .all()
     )

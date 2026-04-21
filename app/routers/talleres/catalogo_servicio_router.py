@@ -48,9 +48,8 @@ def obtener_catalogo_servicios(
 def obtener_catalogo_servicios_por_taller(
     id_taller: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ):
-    return listar_catalogo_servicios_por_taller(db, id_taller, current_user.id_usuario)
+    return listar_catalogo_servicios_por_taller(db, id_taller)
 
 
 @router.get(

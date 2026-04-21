@@ -10,7 +10,7 @@ class Asignacion(Base):
     id_asignacion = Column(Integer, primary_key=True, autoincrement=True, index=True)
     id_solicitud = Column(Integer, ForeignKey("solicitud.id_solicitud"), nullable=False, index=True)
     id_taller = Column(Integer, ForeignKey("taller.id_taller"), nullable=False, index=True)
-    id_catalogo_servicio = Column(Integer, ForeignKey("catalogo_servicio.id_catalogo_servicio"), nullable=False, index=True)
+    id_catalogo_servicio = Column(Integer, ForeignKey("catalogo_servicio.id_catalogo_servicio"), nullable=True, index=True)
     fecha = Column(DateTime, nullable=False, server_default=func.now())
     estado = Column(String(30), nullable=False, default="pendiente")
 

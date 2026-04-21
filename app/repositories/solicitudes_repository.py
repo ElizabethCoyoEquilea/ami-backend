@@ -5,6 +5,10 @@ from app.models.solicitudes.solicitud import Solicitud
 from app.schemas.solicitudes.solicitud_schema import SolicitudCreate
 
 
+def get_solicitud_by_id(db: Session, id_solicitud: int) -> Solicitud | None:
+    return db.query(Solicitud).filter(Solicitud.id_solicitud == id_solicitud).first()
+
+
 def create_solicitud(
     db: Session,
     solicitud_data: SolicitudCreate,

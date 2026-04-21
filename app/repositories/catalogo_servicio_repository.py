@@ -94,6 +94,18 @@ def list_active_catalogo_servicios_by_taller(
     )
 
 
+def list_catalogo_servicios_by_taller(
+    db: Session,
+    id_taller: int,
+) -> list[CatalogoServicio]:
+    return (
+        db.query(CatalogoServicio)
+        .filter(CatalogoServicio.id_taller == id_taller)
+        .order_by(CatalogoServicio.estado)
+        .all()
+    )
+
+
 def update_catalogo_servicio(
     db: Session,
     catalogo_servicio: CatalogoServicio,
