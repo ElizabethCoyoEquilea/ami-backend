@@ -8,7 +8,7 @@ from app.repositories.catalogo_servicio_repository import (
     get_active_catalogo_servicio_by_id,
     get_catalogo_servicio_by_id,
     list_active_catalogo_servicios_by_usuario,
-    list_active_catalogo_servicios_by_taller,
+    list_catalogo_servicios_by_taller,
     logical_delete_catalogo_servicio,
     update_catalogo_servicio,
 )
@@ -67,7 +67,7 @@ def listar_catalogo_servicios_por_taller(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Taller no encontrado",
         )
-    return list_active_catalogo_servicios_by_taller(db, id_taller)
+    return list_catalogo_servicios_by_taller(db, id_taller)
 
 
 def obtener_catalogo_servicio(
