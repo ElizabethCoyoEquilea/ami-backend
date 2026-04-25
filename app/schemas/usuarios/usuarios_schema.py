@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, time
 from pydantic import BaseModel, EmailStr, Field
 
 
@@ -106,6 +106,56 @@ class ClientAssignmentResponse(BaseModel):
     id_usuario: int
     id_cliente: int | None = None
     codigo_cliente: str | None = None
+
+
+class CurrentProviderUserResponse(BaseModel):
+    id_usuario: int
+    email: EmailStr
+    activo: bool
+    persona: PersonaResponse
+
+    class Config:
+        from_attributes = True
+
+
+class CurrentProviderEmpresaResponse(BaseModel):
+    id_taller: int
+    id_usuario: int
+    nombre: str
+    descripcion: str | None = None
+    radio_cobertura: float
+    calificacion: float
+    direccion: str
+    longitud: float | None = None
+    latitud: float | None = None
+    horario_inicio: time
+    horario_fin: time
+    estado: str
+    activo: bool
+
+    class Config:
+        from_attributes = True
+
+
+class CurrentProviderServicioResponse(BaseModel):
+    id_proveedor: int
+    id_usuario: int
+    id_taller: int
+    estado: str | None = None
+    especialidad: str | None = None
+
+    class Config:
+        from_attributes = True
+
+
+class CurrentProviderEmpresaItemResponse(BaseModel):
+    empresa: CurrentProviderEmpresaResponse
+    proveedor_servicio: CurrentProviderServicioResponse
+
+
+class CurrentProviderProfileResponse(BaseModel):
+    usuario: CurrentProviderUserResponse
+    empresas: list[CurrentProviderEmpresaItemResponse]
 
 
 class TallerInvitationCreateSchema(BaseModel):
