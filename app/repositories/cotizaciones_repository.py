@@ -88,7 +88,6 @@ def aceptar_cotizacion_cliente(
         asignacion = Asignacion(
             id_solicitud=cotizacion.id_solicitud,
             id_taller=cotizacion.id_taller,
-            id_catalogo_servicio=None,
             estado="Pendiente de asignar personal",
         )
         db.add(asignacion)

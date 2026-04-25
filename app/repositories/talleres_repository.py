@@ -2,6 +2,9 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.solicitudes.asignacion import Asignacion
+from app.models.solicitudes.detalle_servicio import DetalleServicio
+from app.models.solicitudes.solicitud import Solicitud
+from app.models.solicitudes.servicio import Servicio
 from app.models.talleres.taller import Taller
 from app.models.usuarios.usuario import User
 from app.models.usuarios.usuario_rol import UsuarioRol
@@ -103,10 +106,74 @@ def get_proveedores_by_taller(db: Session, id_taller: int) -> list[ProveedorServ
     )
 
 
+def list_active_provider_assignments_by_user(
+    db: Session, id_usuario: int
+) -> list[ProveedorServicio]:
+    return (
+        db.query(ProveedorServicio)
+        .join(
+            UsuarioRol,
+            (UsuarioRol.id_usuario == ProveedorServicio.id_usuario)
+            & (UsuarioRol.id_taller == ProveedorServicio.id_taller),
+        )
+        .options(
+            joinedload(ProveedorServicio.taller),
+            joinedload(ProveedorServicio.usuario).joinedload(User.persona),
+        )
+        .filter(
+            ProveedorServicio.id_usuario == id_usuario,
+            UsuarioRol.id_rol == 2,
+            UsuarioRol.activo.is_(True),
+        )
+        .order_by(ProveedorServicio.id_proveedor)
+        .all()
+    )
+
+
+def get_active_provider_assignment_by_user_and_taller(
+    db: Session,
+    id_usuario: int,
+    id_taller: int,
+) -> ProveedorServicio | None:
+    return (
+        db.query(ProveedorServicio)
+        .join(
+            UsuarioRol,
+            (UsuarioRol.id_usuario == ProveedorServicio.id_usuario)
+            & (UsuarioRol.id_taller == ProveedorServicio.id_taller),
+        )
+        .options(
+            joinedload(ProveedorServicio.usuario).joinedload(User.persona),
+            joinedload(ProveedorServicio.taller),
+        )
+        .filter(
+            ProveedorServicio.id_usuario == id_usuario,
+            ProveedorServicio.id_taller == id_taller,
+            UsuarioRol.id_rol == 2,
+            UsuarioRol.activo.is_(True),
+        )
+        .first()
+    )
+
+
+def get_asignacion_with_solicitud_by_id(db: Session, id_asignacion: int) -> Asignacion | None:
+    return (
+        db.query(Asignacion)
+        .options(joinedload(Asignacion.solicitud).joinedload(Solicitud.vehiculo))
+        .filter(Asignacion.id_asignacion == id_asignacion)
+        .first()
+    )
+
+
 def list_asignaciones_by_taller(db: Session, id_taller: int) -> list[Asignacion]:
     return (
         db.query(Asignacion)
-        .options(joinedload(Asignacion.solicitud))
+        .options(
+            joinedload(Asignacion.solicitud),
+            joinedload(Asignacion.servicios)
+            .joinedload(Servicio.detalles_servicio)
+            .joinedload(DetalleServicio.catalogo_servicio),
+        )
         .filter(Asignacion.id_taller == id_taller)
         .order_by(Asignacion.id_asignacion)
         .all()

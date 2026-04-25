@@ -12,7 +12,10 @@ from app.models.usuarios.cliente import Cliente
 from app.models.usuarios.proveedor_servicio import ProveedorServicio
 from app.models.usuarios.usuario import User
 from app.models.usuarios.usuario_rol import UsuarioRol
-from app.repositories.talleres_repository import get_active_taller_by_id
+from app.repositories.talleres_repository import (
+    get_active_taller_by_id,
+    list_active_provider_assignments_by_user,
+)
 from app.repositories.usuarios_repository import (
     create_user,
     get_active_user_role,
@@ -291,6 +294,60 @@ def check_current_user_is_client(db: Session, current_user: User):
         "id_usuario": current_user.id_usuario,
         "id_cliente": cliente.id_cliente,
         "codigo_cliente": cliente.codigo,
+    }
+
+
+def get_current_provider_profile(db: Session, current_user: User):
+    provider_assignments = list_active_provider_assignments_by_user(
+        db, current_user.id_usuario
+    )
+    if not provider_assignments:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="El usuario autenticado no tiene un rol activo de proveedor",
+        )
+
+    return {
+        "usuario": {
+            "id_usuario": current_user.id_usuario,
+            "email": current_user.email,
+            "activo": current_user.activo,
+            "persona": {
+                "id_persona": current_user.persona.id_persona,
+                "nombre_completo": current_user.persona.nombre_completo,
+                "fecha_nacimiento": current_user.persona.fecha_nacimiento,
+                "genero": current_user.persona.genero,
+                "telefono": current_user.persona.telefono,
+                "documento": current_user.persona.documento,
+            },
+        },
+        "empresas": [
+            {
+                "empresa": {
+                    "id_taller": assignment.taller.id_taller,
+                    "id_usuario": assignment.taller.id_usuario,
+                    "nombre": assignment.taller.nombre,
+                    "descripcion": assignment.taller.descripcion,
+                    "radio_cobertura": assignment.taller.radio_cobertura,
+                    "calificacion": assignment.taller.calificacion,
+                    "direccion": assignment.taller.direccion,
+                    "longitud": assignment.taller.longitud,
+                    "latitud": assignment.taller.latitud,
+                    "horario_inicio": assignment.taller.horario_inicio,
+                    "horario_fin": assignment.taller.horario_fin,
+                    "estado": assignment.taller.estado,
+                    "activo": assignment.taller.activo,
+                },
+                "proveedor_servicio": {
+                    "id_proveedor": assignment.id_proveedor,
+                    "id_usuario": assignment.id_usuario,
+                    "id_taller": assignment.id_taller,
+                    "estado": assignment.estado,
+                    "especialidad": assignment.especialidad,
+                },
+            }
+            for assignment in provider_assignments
+        ],
     }
 
 

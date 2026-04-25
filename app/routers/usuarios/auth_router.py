@@ -13,6 +13,7 @@ from app.schemas.usuarios.usuarios_schema import (
     ResultMessageResponse,
     CreateClientResponse,
     ClientAssignmentResponse,
+    CurrentProviderProfileResponse,
     TallerInvitationCreateSchema,
     TallerInvitationCreateResponse,
 )
@@ -22,6 +23,7 @@ from app.services.usuarios_service import (
     reset_user_password,
     create_client_for_current_user,
     check_current_user_is_client,
+    get_current_provider_profile,
     send_taller_invitation,
     accept_taller_invitation,
 )
@@ -261,6 +263,23 @@ def is_client(
     Requiere: Authorization: Bearer <token>
     """
     return check_current_user_is_client(db, current_user)
+
+
+@router.get(
+    "/me/provider-profile",
+    response_model=CurrentProviderProfileResponse,
+    status_code=status.HTTP_200_OK,
+)
+def get_my_provider_profile(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Devuelve los datos del usuario autenticado solo si tiene un rol activo de proveedor.
+
+    Requiere: Authorization: Bearer <token>
+    """
+    return get_current_provider_profile(db, current_user)
 
 
 @router.post(

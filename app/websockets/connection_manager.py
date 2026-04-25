@@ -26,3 +26,4 @@ class WebSocketConnectionManager:
 
 
 clients_ws_manager = WebSocketConnectionManager()
+providers_ws_manager = WebSocketConnectionManager()
