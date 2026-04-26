@@ -10,6 +10,7 @@ class AsignacionConSolicitudResponse(BaseModel):
     id_asignacion: int
     id_solicitud: int
     id_taller: int
+    id_proveedor: int | None
     fecha: datetime
     estado: str
     solicitud: SolicitudResponse

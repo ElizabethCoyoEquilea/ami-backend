@@ -10,7 +10,6 @@ from app.repositories.cotizaciones_repository import (
     aceptar_cotizacion_cliente,
     create_cotizacion_pendiente,
     get_cotizacion_detalle_by_id,
-    get_cotizacion_finalizada_by_solicitud,
     list_cotizaciones_pendientes_by_taller,
     rechazar_cotizacion_cliente,
     update_monto_cotizacion_admin,
@@ -39,14 +38,32 @@ def registrar_cotizacion_pendiente(
             detail="Taller no encontrado",
         )
 
-    cotizacion_existente = get_cotizacion_finalizada_by_solicitud(
-        db,
-        id_solicitud,
+    cotizacion_pendiente = (
+        db.query(Cotizacion)
+        .filter(
+            Cotizacion.id_solicitud == id_solicitud,
+            Cotizacion.estado.in_(["pendiente", "enviado"]),
+        )
+        .first()
     )
-    if cotizacion_existente:
+    if cotizacion_pendiente:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Ya existe una cotizacion aceptada o rechazada para esta solicitud",
+            detail="Ya existe una cotizacion pendiente o enviada para esta solicitud",
+        )
+
+    cotizacion_aceptada = (
+        db.query(Cotizacion)
+        .filter(
+            Cotizacion.id_solicitud == id_solicitud,
+            Cotizacion.estado.in_(["aceptada", "aceptado"]),
+        )
+        .first()
+    )
+    if cotizacion_aceptada:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Ya existe una cotizacion aceptada para esta solicitud",
         )
 
     try:
@@ -71,6 +88,32 @@ def listar_cotizaciones_pendientes_taller(
         )
 
     return list_cotizaciones_pendientes_by_taller(db, id_taller)
+
+
+def obtener_cotizacion_por_id(
+    db: Session,
+    id_cotizacion: int,
+    current_user: User,
+) -> Cotizacion:
+    cotizacion = get_cotizacion_detalle_by_id(db, id_cotizacion)
+    if not cotizacion:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Cotizacion no encontrada",
+        )
+
+    es_admin_taller = bool(cotizacion.taller and cotizacion.taller.id_usuario == current_user.id_usuario)
+
+    cliente = cotizacion.solicitud.vehiculo.cliente if cotizacion.solicitud and cotizacion.solicitud.vehiculo else None
+    es_cliente_dueno = bool(cliente and cliente.id_usuario == current_user.id_usuario)
+
+    if not es_admin_taller and not es_cliente_dueno:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Cotizacion no encontrada para el usuario autenticado",
+        )
+
+    return cotizacion
 
 
 async def rechazar_cotizacion_por_solicitud(
@@ -252,7 +295,7 @@ def procesar_respuesta_cotizacion_cliente(
             },
         }
 
-    if cotizacion.estado != "pendiente":
+    if cotizacion.estado not in {"pendiente", "enviado"}:
         return {
             "tipo": "error",
             "data": {

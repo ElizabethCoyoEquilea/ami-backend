@@ -540,7 +540,7 @@ def accept_taller_invitation(db: Session, token: str):
         proveedor_servicio = ProveedorServicio(
             id_usuario=invited_user.id_usuario,
             id_taller=taller.id_taller,
-            estado=None,
+            estado="Disponible",
             especialidad=None,
         )
         db.add(proveedor_servicio)

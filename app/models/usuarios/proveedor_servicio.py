@@ -15,6 +15,7 @@ class ProveedorServicio(Base):
 
     usuario = relationship("User", back_populates="proveedores_servicio")
     taller = relationship("Taller", back_populates="proveedores_servicio")
+    asignaciones = relationship("Asignacion", back_populates="proveedor_servicio")
 
     __table_args__ = (
         UniqueConstraint("id_usuario", "id_taller", name="uq_proveedor_servicio_usuario_taller"),
