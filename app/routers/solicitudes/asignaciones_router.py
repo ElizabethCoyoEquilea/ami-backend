@@ -21,4 +21,4 @@ def obtener_asignacion(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return obtener_asignacion_por_id(db, id_asignacion, current_user)
+    return obtener_asignacion_por_id(db, id_asignacion)

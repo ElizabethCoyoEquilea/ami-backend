@@ -1,4 +1,6 @@
 import logging
+from datetime import datetime
+from decimal import Decimal
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect, status
 from jose import JWTError
@@ -6,6 +8,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.database import SessionLocal
 from app.core.security import verify_token
+from app.models.solicitudes.servicio import Servicio
 from app.models.usuarios.cliente import Cliente
 from app.models.usuarios.usuario import User
 from app.repositories.talleres_repository import (
@@ -129,6 +132,49 @@ async def websocket_clients(websocket: WebSocket, token: str):
                     },
                 }
                 await _send_client_json(websocket, id_usuario, resultado_payload)
+                continue
+
+            if mensaje.get("tipo") == "ubicacion_mecanico_actualizada":
+                data = mensaje.get("data") or {}
+                id_usuario_cliente = data.get("id_usuario_cliente")
+
+                try:
+                    id_usuario_cliente = int(id_usuario_cliente)
+                except (TypeError, ValueError):
+                    error_payload = {
+                        "tipo": "error",
+                        "data": {
+                            "mensaje": "id_usuario_cliente debe ser numero",
+                        },
+                    }
+                    await _send_client_json(websocket, id_usuario, error_payload)
+                    continue
+
+                websocket_cliente_enviado = await clients_ws_manager.send_to_user(
+                    id_usuario_cliente,
+                    {
+                        "tipo": "ruta_proveedor",
+                        "data": data,
+                    },
+                )
+                logger.info(
+                    "clients_mechanic_location_forwarded user=%s client_user=%s notified=%s payload=%s",
+                    id_usuario,
+                    id_usuario_cliente,
+                    websocket_cliente_enviado,
+                    data,
+                )
+                await _send_client_json(
+                    websocket,
+                    id_usuario,
+                    {
+                        "tipo": "ubicacion_mecanico_actualizada_resultado",
+                        "data": {
+                            "id_usuario_cliente": id_usuario_cliente,
+                            "websocket_cliente_enviado": websocket_cliente_enviado,
+                        },
+                    },
+                )
                 continue
 
             respuesta = procesar_respuesta_cotizacion_cliente(db, id_usuario, mensaje)
@@ -336,11 +382,21 @@ async def websocket_provider(websocket: WebSocket, token: str):
                     )
                     continue
 
+                servicio_creado = None
                 try:
                     if tipo == "proveedor_acepto":
                         asignacion.id_proveedor = proveedor_actual.id_proveedor
                         asignacion.estado = "Asignado"
                         proveedor_actual.estado = "Ocupado"
+                        servicio_creado = Servicio(
+                            id_asignacion=asignacion.id_asignacion,
+                            id_pago=None,
+                            total=Decimal("0.00"),
+                            fecha_inicio=datetime.now(),
+                            fecha_fin=None,
+                            estado="En curso",
+                        )
+                        db.add(servicio_creado)
                     else:
                         asignacion.id_proveedor = None
                         asignacion.estado = "Pendiente de asignar personal"
@@ -348,6 +404,8 @@ async def websocket_provider(websocket: WebSocket, token: str):
                     db.commit()
                     db.refresh(asignacion)
                     db.refresh(proveedor_actual)
+                    if servicio_creado:
+                        db.refresh(servicio_creado)
                 except SQLAlchemyError:
                     db.rollback()
                     logger.exception(
@@ -391,6 +449,10 @@ async def websocket_provider(websocket: WebSocket, token: str):
                             asignacion.id_asignacion,
                         )
 
+                solicitud = asignacion.solicitud
+                vehiculo = solicitud.vehiculo if solicitud else None
+                cliente = vehiculo.cliente if vehiculo else None
+
                 tipo_resultado = f"{tipo}_resultado"
                 await _send_provider_json(
                     websocket,
@@ -404,6 +466,8 @@ async def websocket_provider(websocket: WebSocket, token: str):
                             "id_proveedor": asignacion.id_proveedor,
                             "estado_asignacion": asignacion.estado,
                             "estado_proveedor": proveedor_actual.estado,
+                            "id_servicio": servicio_creado.id_servicio if servicio_creado else None,
+                            "id_usuario_cliente": cliente.id_usuario if cliente else None,
                         },
                     },
                 )
