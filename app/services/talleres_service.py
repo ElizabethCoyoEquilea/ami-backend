@@ -1,10 +1,14 @@
+import shutil
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from uuid import uuid4
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from fastapi import HTTPException, status
+from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.models.solicitudes.cotizacion import Cotizacion
 from app.models.talleres.taller import Taller
 from app.repositories.talleres_repository import (
     create_taller,
@@ -24,6 +28,29 @@ try:
     LA_PAZ_TZ = ZoneInfo("America/La_Paz")
 except ZoneInfoNotFoundError:
     LA_PAZ_TZ = timezone(timedelta(hours=-4))
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+UPLOADS_ROOT = PROJECT_ROOT / "uploads" / "talleres" / "qr"
+
+
+def _guardar_qr(upload: UploadFile) -> str:
+    content_type = upload.content_type or ""
+    if not content_type.startswith("image/"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El QR debe ser un archivo de tipo imagen",
+        )
+
+    UPLOADS_ROOT.mkdir(parents=True, exist_ok=True)
+    extension = Path(upload.filename or "").suffix.lower()
+    nombre_archivo = f"{uuid4().hex}{extension}"
+    ruta_archivo = UPLOADS_ROOT / nombre_archivo
+
+    with ruta_archivo.open("wb") as buffer:
+        shutil.copyfileobj(upload.file, buffer)
+
+    return f"/uploads/talleres/qr/{nombre_archivo}"
 
 
 def _calcular_estado(taller: Taller) -> str:
@@ -53,10 +80,17 @@ def _validar_horario_completo(taller: Taller, taller_data: TallerUpdate) -> None
         )
 
 
-def registrar_taller(db: Session, taller_data: TallerCreate, id_usuario: int) -> Taller:
+def registrar_taller(
+    db: Session,
+    taller_data: TallerCreate,
+    id_usuario: int,
+    qr: UploadFile | None = None,
+) -> Taller:
     try:
         taller_data.estado = taller_data.estado or "cerrado"
         taller_data.activo = True
+        if qr:
+            taller_data.qr = _guardar_qr(qr)
         taller = create_taller(db, taller_data, id_usuario)
         return _actualizar_estado_por_horario(db, taller)
     except SQLAlchemyError:
@@ -90,7 +124,13 @@ def obtener_taller(db: Session, id_taller: int) -> Taller:
     return _actualizar_estado_por_horario(db, taller)
 
 
-def modificar_taller(db: Session, id_taller: int, taller_data: TallerUpdate, id_usuario: int) -> Taller:
+def modificar_taller(
+    db: Session,
+    id_taller: int,
+    taller_data: TallerUpdate,
+    id_usuario: int,
+    qr: UploadFile | None = None,
+) -> Taller:
     taller = get_taller_by_id(db, id_taller)
     if not taller or taller.id_usuario != id_usuario:
         raise HTTPException(
@@ -101,6 +141,8 @@ def modificar_taller(db: Session, id_taller: int, taller_data: TallerUpdate, id_
     _validar_horario_completo(taller, taller_data)
 
     try:
+        if qr:
+            taller_data.qr = _guardar_qr(qr)
         taller_actualizado = update_taller(db, taller, taller_data)
         return _actualizar_estado_por_horario(db, taller_actualizado)
     except SQLAlchemyError:
@@ -144,12 +186,43 @@ def listar_proveedores_taller(db: Session, id_taller: int, id_usuario: int) -> d
     }
 
 
-def listar_asignaciones_taller(db: Session, id_taller: int, id_usuario: int):
+def listar_asignaciones_taller(db: Session, id_taller: int):
     taller = get_active_taller_by_id(db, id_taller)
-    if not taller or taller.id_usuario != id_usuario:
+    if not taller:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Taller no encontrado",
         )
 
-    return list_asignaciones_by_taller(db, id_taller)
+    asignaciones = list_asignaciones_by_taller(db, id_taller)
+    solicitud_ids = [asignacion.id_solicitud for asignacion in asignaciones]
+
+    cotizaciones_por_solicitud = {}
+    if solicitud_ids:
+        cotizaciones = (
+            db.query(Cotizacion)
+            .filter(
+                Cotizacion.id_taller == id_taller,
+                Cotizacion.id_solicitud.in_(solicitud_ids),
+            )
+            .all()
+        )
+        cotizaciones_por_solicitud = {
+            cotizacion.id_solicitud: cotizacion.id_cotizacion
+            for cotizacion in cotizaciones
+        }
+
+    return [
+        {
+            "id_asignacion": asignacion.id_asignacion,
+            "id_cotizacion": cotizaciones_por_solicitud.get(asignacion.id_solicitud),
+            "id_solicitud": asignacion.id_solicitud,
+            "id_taller": asignacion.id_taller,
+            "id_proveedor": asignacion.id_proveedor,
+            "fecha": asignacion.fecha,
+            "estado": asignacion.estado,
+            "solicitud": asignacion.solicitud,
+            "servicios": asignacion.servicios,
+        }
+        for asignacion in asignaciones
+    ]

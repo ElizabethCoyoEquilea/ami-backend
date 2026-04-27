@@ -13,6 +13,7 @@ from app.routers.solicitudes.solicitudes_router import router as solicitudes_rou
 from app.routers.solicitudes.cotizaciones_router import router as cotizaciones_router
 from app.routers.solicitudes.servicios_router import router as servicios_router
 from app.routers.solicitudes.asignaciones_router import router as asignaciones_router
+from app.routers.solicitudes.pagos_router import router as pagos_router
 from app.routers.talleres.talleres_router import router as talleres_router
 from app.routers.talleres.catalogo_servicio_router import router as catalogo_servicio_router
 from app.routers.websockets_router import router as websockets_router
@@ -61,6 +62,7 @@ app.include_router(solicitudes_router)
 app.include_router(cotizaciones_router)
 app.include_router(servicios_router)
 app.include_router(asignaciones_router)
+app.include_router(pagos_router)
 app.include_router(talleres_router)
 app.include_router(catalogo_servicio_router)
 app.include_router(websockets_router)

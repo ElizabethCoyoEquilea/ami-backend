@@ -17,4 +17,12 @@ class Servicio(Base):
 
     asignacion = relationship("Asignacion", back_populates="servicios")
     pago = relationship("Pago", back_populates="servicio", uselist=False)
+    calificacion = relationship("Calificacion", back_populates="servicio", uselist=False, cascade="all, delete-orphan")
     detalles_servicio = relationship("DetalleServicio", back_populates="servicio", cascade="all, delete-orphan")
+
+    @property
+    def id_usuario_cliente(self) -> int | None:
+        solicitud = self.asignacion.solicitud if self.asignacion else None
+        vehiculo = solicitud.vehiculo if solicitud else None
+        cliente = vehiculo.cliente if vehiculo else None
+        return cliente.id_usuario if cliente else None

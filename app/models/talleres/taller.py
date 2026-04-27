@@ -16,6 +16,7 @@ class Taller(Base):
     direccion = Column(String(255), nullable=False)
     longitud = Column(Float, nullable=True)
     latitud = Column(Float, nullable=True)
+    qr = Column(String(1000), nullable=True)
     horario_inicio = Column(Time, nullable=False)
     horario_fin = Column(Time, nullable=False)
     estado = Column(String(10), nullable=False, default="cerrado")

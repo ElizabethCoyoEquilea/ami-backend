@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, status
+from datetime import time
+
+from fastapi import APIRouter, Depends, File, Form, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -24,11 +26,35 @@ router = APIRouter(prefix="/talleres", tags=["Talleres"])
 
 @router.post("", response_model=TallerResponse, status_code=status.HTTP_201_CREATED)
 def crear_taller(
-    taller_data: TallerCreate,
+    nombre: str = Form(..., min_length=1, max_length=150),
+    descripcion: str | None = Form(default=None, max_length=500),
+    radio_cobertura: float = Form(..., ge=0, le=100),
+    calificacion: float = Form(default=0, ge=0, le=5),
+    direccion: str = Form(..., min_length=1, max_length=255),
+    longitud: float | None = Form(default=None),
+    latitud: float | None = Form(default=None),
+    horario_inicio: time = Form(...),
+    horario_fin: time = Form(...),
+    estado: str | None = Form(default=None),
+    activo: bool = Form(default=True),
+    qr: UploadFile | None = File(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return registrar_taller(db, taller_data, current_user.id_usuario)
+    taller_data = TallerCreate(
+        nombre=nombre,
+        descripcion=descripcion,
+        radio_cobertura=radio_cobertura,
+        calificacion=calificacion,
+        direccion=direccion,
+        longitud=longitud,
+        latitud=latitud,
+        horario_inicio=horario_inicio,
+        horario_fin=horario_fin,
+        estado=estado,
+        activo=activo,
+    )
+    return registrar_taller(db, taller_data, current_user.id_usuario, qr)
 
 
 @router.get("", response_model=list[TallerResponse], status_code=status.HTTP_200_OK)
@@ -45,23 +71,58 @@ def obtener_mis_talleres(
 
 
 @router.get("/{id_taller}", response_model=TallerResponse, status_code=status.HTTP_200_OK)
-def obtener_taller_por_id(id_taller: int, db: Session = Depends(get_db)):
+def obtener_taller_por_id(
+    id_taller: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     return obtener_taller(db, id_taller)
 
 
 @router.get("/{id_taller}/detalle", response_model=TallerResponse, status_code=status.HTTP_200_OK)
-def obtener_detalle_taller(id_taller: int, db: Session = Depends(get_db)):
+def obtener_detalle_taller(
+    id_taller: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     return obtener_taller(db, id_taller)
 
 
 @router.put("/{id_taller}", response_model=TallerResponse, status_code=status.HTTP_200_OK)
 def actualizar_taller(
     id_taller: int,
-    taller_data: TallerUpdate,
+    nombre: str | None = Form(default=None, min_length=1, max_length=150),
+    descripcion: str | None = Form(default=None, max_length=500),
+    radio_cobertura: float | None = Form(default=None, ge=0, le=100),
+    calificacion: float | None = Form(default=None, ge=0, le=5),
+    direccion: str | None = Form(default=None, min_length=1, max_length=255),
+    longitud: float | None = Form(default=None),
+    latitud: float | None = Form(default=None),
+    horario_inicio: time | None = Form(default=None),
+    horario_fin: time | None = Form(default=None),
+    estado: str | None = Form(default=None),
+    activo: bool | None = Form(default=None),
+    qr: UploadFile | None = File(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return modificar_taller(db, id_taller, taller_data, current_user.id_usuario)
+    update_data = {
+        "nombre": nombre,
+        "descripcion": descripcion,
+        "radio_cobertura": radio_cobertura,
+        "calificacion": calificacion,
+        "direccion": direccion,
+        "longitud": longitud,
+        "latitud": latitud,
+        "horario_inicio": horario_inicio,
+        "horario_fin": horario_fin,
+        "estado": estado,
+        "activo": activo,
+    }
+    taller_data = TallerUpdate(
+        **{field: value for field, value in update_data.items() if value is not None}
+    )
+    return modificar_taller(db, id_taller, taller_data, current_user.id_usuario, qr)
 
 
 @router.delete("/{id_taller}", response_model=MessageResponse, status_code=status.HTTP_200_OK)
@@ -92,4 +153,4 @@ def obtener_asignaciones_taller(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return listar_asignaciones_taller(db, id_taller, current_user.id_usuario)
+    return listar_asignaciones_taller(db, id_taller)

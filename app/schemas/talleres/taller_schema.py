@@ -15,6 +15,7 @@ class TallerBase(BaseModel):
     direccion: str = Field(min_length=1, max_length=255)
     longitud: float | None = None
     latitud: float | None = None
+    qr: str | None = Field(default=None, max_length=1000)
     horario_inicio: time
     horario_fin: time
     estado: str | None = None
@@ -28,9 +29,9 @@ class TallerBase(BaseModel):
             raise ValueError("Este campo es obligatorio")
         return value
 
-    @field_validator("descripcion")
+    @field_validator("descripcion", "qr")
     @classmethod
-    def limpiar_descripcion(cls, value: str | None) -> str | None:
+    def limpiar_texto_opcional(cls, value: str | None) -> str | None:
         if value is None:
             return value
         value = value.strip()
@@ -66,6 +67,7 @@ class TallerUpdate(BaseModel):
     direccion: str | None = Field(default=None, min_length=1, max_length=255)
     longitud: float | None = None
     latitud: float | None = None
+    qr: str | None = Field(default=None, max_length=1000)
     horario_inicio: time | None = None
     horario_fin: time | None = None
     estado: str | None = None
@@ -81,9 +83,9 @@ class TallerUpdate(BaseModel):
             raise ValueError("Este campo no puede estar vacio")
         return value
 
-    @field_validator("descripcion")
+    @field_validator("descripcion", "qr")
     @classmethod
-    def limpiar_descripcion(cls, value: str | None) -> str | None:
+    def limpiar_texto_opcional(cls, value: str | None) -> str | None:
         if value is None:
             return value
         value = value.strip()
@@ -120,6 +122,7 @@ class TallerResponse(BaseModel):
     direccion: str
     longitud: float | None
     latitud: float | None
+    qr: str | None
     horario_inicio: time
     horario_fin: time
     estado: str

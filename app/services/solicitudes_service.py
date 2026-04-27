@@ -40,7 +40,7 @@ def _guardar_archivo(upload: UploadFile, carpeta: str, tipo: str) -> str:
     with ruta_archivo.open("wb") as buffer:
         shutil.copyfileobj(upload.file, buffer)
 
-    return f"/uploads/{carpeta}/{nombre_archivo}"
+    return f"/uploads/solicitudes/{carpeta}/{nombre_archivo}"
 
 
 def registrar_solicitud(

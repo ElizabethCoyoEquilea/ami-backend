@@ -2,6 +2,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.schemas.solicitudes.pago_schema import PagoResponse
+
 
 class CatalogoServicioResumenResponse(BaseModel):
     id_catalogo_servicio: int
@@ -18,7 +20,7 @@ class DetalleServicioBase(BaseModel):
     cantidad: int = Field(gt=0)
     precio: float = Field(ge=0)
     nombre: str = Field(min_length=1, max_length=150)
-    descripcion: str | None = Field(default=None, max_length=500)
+    observacion: str | None = Field(default=None, max_length=500)
 
     @field_validator("nombre")
     @classmethod
@@ -28,9 +30,9 @@ class DetalleServicioBase(BaseModel):
             raise ValueError("El nombre es obligatorio")
         return value
 
-    @field_validator("descripcion")
+    @field_validator("observacion")
     @classmethod
-    def limpiar_descripcion(cls, value: str | None) -> str | None:
+    def limpiar_observacion(cls, value: str | None) -> str | None:
         if value is None:
             return value
         value = value.strip()
@@ -73,6 +75,8 @@ class ServicioCreate(BaseModel):
 class ServicioResponse(BaseModel):
     id_servicio: int
     id_asignacion: int
+    id_pago: int | None = None
+    id_usuario_cliente: int | None = None
     total: float
     fecha_inicio: datetime | None
     fecha_fin: datetime | None
@@ -81,3 +85,23 @@ class ServicioResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ServicioResumenResponse(BaseModel):
+    id_servicio: int
+    id_asignacion: int
+    id_pago: int | None = None
+    total: float
+    fecha_inicio: datetime | None
+    fecha_fin: datetime | None
+    estado: str
+
+    class Config:
+        from_attributes = True
+
+
+class ServicioFacturaResponse(BaseModel):
+    servicio: ServicioResponse
+    detalles: list[DetalleServicioResponse] = Field(default_factory=list)
+    pago: PagoResponse | None = None
+    total: float

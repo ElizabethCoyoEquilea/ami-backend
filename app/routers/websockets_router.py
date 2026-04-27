@@ -8,7 +8,10 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.database import SessionLocal
 from app.core.security import verify_token
+from app.models.solicitudes.asignacion import Asignacion
+from app.models.solicitudes.cotizacion import Cotizacion
 from app.models.solicitudes.servicio import Servicio
+from app.models.solicitudes.solicitud import Solicitud
 from app.models.usuarios.cliente import Cliente
 from app.models.usuarios.usuario import User
 from app.repositories.talleres_repository import (
@@ -175,6 +178,121 @@ async def websocket_clients(websocket: WebSocket, token: str):
                         },
                     },
                 )
+                continue
+
+            if mensaje.get("tipo") == "admin_cancelo_servicio":
+                data = mensaje.get("data") or {}
+                id_asignacion = data.get("id_asignacion")
+                id_cotizacion = data.get("id_cotizacion")
+                id_solicitud = data.get("id_solicitud")
+
+                try:
+                    id_asignacion = int(id_asignacion)
+                    id_cotizacion = int(id_cotizacion)
+                    id_solicitud = int(id_solicitud)
+                except (TypeError, ValueError):
+                    await _send_client_json(
+                        websocket,
+                        id_usuario,
+                        {
+                            "tipo": "error",
+                            "data": {
+                                "mensaje": "id_asignacion, id_cotizacion e id_solicitud deben ser numeros",
+                            },
+                        },
+                    )
+                    continue
+
+                asignacion = (
+                    db.query(Asignacion)
+                    .filter(
+                        Asignacion.id_asignacion == id_asignacion,
+                        Asignacion.id_solicitud == id_solicitud,
+                    )
+                    .first()
+                )
+                cotizacion = (
+                    db.query(Cotizacion)
+                    .filter(
+                        Cotizacion.id_cotizacion == id_cotizacion,
+                        Cotizacion.id_solicitud == id_solicitud,
+                    )
+                    .first()
+                )
+                solicitud = (
+                    db.query(Solicitud)
+                    .filter(Solicitud.id_solicitud == id_solicitud)
+                    .first()
+                )
+
+                if not asignacion or not cotizacion or not solicitud:
+                    await _send_client_json(
+                        websocket,
+                        id_usuario,
+                        {
+                            "tipo": "error",
+                            "data": {
+                                "mensaje": "Asignacion, cotizacion o solicitud no encontrada",
+                            },
+                        },
+                    )
+                    continue
+
+                try:
+                    asignacion.estado = "cancelado"
+                    cotizacion.estado = "rechazada"
+                    solicitud.estado = "pendiente"
+                    db.commit()
+                    db.refresh(asignacion)
+                    db.refresh(cotizacion)
+                    db.refresh(solicitud)
+                except SQLAlchemyError:
+                    db.rollback()
+                    logger.exception(
+                        "admin_cancel_service_error user=%s id_asignacion=%s id_cotizacion=%s id_solicitud=%s",
+                        id_usuario,
+                        id_asignacion,
+                        id_cotizacion,
+                        id_solicitud,
+                    )
+                    await _send_client_json(
+                        websocket,
+                        id_usuario,
+                        {
+                            "tipo": "error",
+                            "data": {
+                                "mensaje": "No se pudo cancelar el servicio",
+                            },
+                        },
+                    )
+                    continue
+
+                resultado_payload = {
+                    "tipo": "admin_cancelo_servicio_resultado",
+                    "data": {
+                        "id_asignacion": asignacion.id_asignacion,
+                        "id_cotizacion": cotizacion.id_cotizacion,
+                        "id_solicitud": solicitud.id_solicitud,
+                        "estado_asignacion": asignacion.estado,
+                        "estado_cotizacion": cotizacion.estado,
+                        "estado_solicitud": solicitud.estado,
+                    },
+                }
+                vehiculo = solicitud.vehiculo
+                cliente = vehiculo.cliente if vehiculo else None
+                if cliente:
+                    cliente_notificado = await clients_ws_manager.send_to_user(
+                        cliente.id_usuario,
+                        resultado_payload,
+                    )
+                    logger.info(
+                        "service_cancel_client_notified user=%s notified=%s id_solicitud=%s",
+                        cliente.id_usuario,
+                        cliente_notificado,
+                        solicitud.id_solicitud,
+                    )
+
+                await _send_client_json(websocket, id_usuario, resultado_payload)
                 continue
 
             respuesta = procesar_respuesta_cotizacion_cliente(db, id_usuario, mensaje)
@@ -399,7 +517,7 @@ async def websocket_provider(websocket: WebSocket, token: str):
                         db.add(servicio_creado)
                     else:
                         asignacion.id_proveedor = None
-                        asignacion.estado = "Pendiente de asignar personal"
+                        asignacion.estado = " de asignar personal"
 
                     db.commit()
                     db.refresh(asignacion)
@@ -452,6 +570,31 @@ async def websocket_provider(websocket: WebSocket, token: str):
                 solicitud = asignacion.solicitud
                 vehiculo = solicitud.vehiculo if solicitud else None
                 cliente = vehiculo.cliente if vehiculo else None
+
+                if tipo == "proveedor_acepto":
+                    taller = get_active_taller_by_id(db, id_taller)
+                    if taller:
+                        admin_payload = {
+                            "tipo": "proveedor_acepto_resultado",
+                            "data": {
+                                "id_asignacion": asignacion.id_asignacion,
+                                "id_usuario_cliente": cliente.id_usuario if cliente else None,
+                                "estado_asignacion": asignacion.estado,
+                                "id_servicio": servicio_creado.id_servicio if servicio_creado else None,
+                            },
+                        }
+                        admin_notificado = await providers_ws_manager.send_to_user(
+                            taller.id_usuario,
+                            admin_payload,
+                        )
+                        logger.info(
+                            "admin_notified user=%s event=%s notified=%s id_asignacion=%s id_servicio=%s",
+                            taller.id_usuario,
+                            admin_payload["tipo"],
+                            admin_notificado,
+                            asignacion.id_asignacion,
+                            servicio_creado.id_servicio if servicio_creado else None,
+                        )
 
                 tipo_resultado = f"{tipo}_resultado"
                 await _send_provider_json(
@@ -575,6 +718,7 @@ async def websocket_provider(websocket: WebSocket, token: str):
                     continue
 
                 try:
+                    asignacion.id_proveedor = provider_target.id_proveedor
                     asignacion.estado = "enviada"
                     db.commit()
                     db.refresh(asignacion)
