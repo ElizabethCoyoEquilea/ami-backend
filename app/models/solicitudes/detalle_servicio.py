@@ -14,7 +14,7 @@ class DetalleServicio(Base):
     precio = Column(Numeric(12, 2), nullable=False)
     sub_total = Column(Numeric(12, 2), nullable=False)
     nombre = Column(String(150), nullable=False)
-    descripcion = Column(String(500), nullable=True)
+    observacion = Column(String(500), nullable=True)
 
     servicio = relationship("Servicio", back_populates="detalles_servicio")
     catalogo_servicio = relationship("CatalogoServicio", back_populates="detalles_servicio")

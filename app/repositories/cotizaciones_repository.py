@@ -69,6 +69,7 @@ def update_monto_cotizacion_admin(
 ) -> Cotizacion:
     try:
         cotizacion.monto = monto
+        cotizacion.estado = "enviado"
         db.commit()
         db.refresh(cotizacion)
         return cotizacion
@@ -88,6 +89,7 @@ def aceptar_cotizacion_cliente(
         asignacion = Asignacion(
             id_solicitud=cotizacion.id_solicitud,
             id_taller=cotizacion.id_taller,
+            id_proveedor=None,
             estado="Pendiente de asignar personal",
         )
         db.add(asignacion)

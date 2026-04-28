@@ -15,6 +15,7 @@ from app.schemas.solicitudes.cotizacion_schema import (
 from app.services.cotizaciones_service import (
     enviar_monto_cotizacion_admin,
     listar_cotizaciones_pendientes_taller,
+    obtener_cotizacion_por_id,
     registrar_cotizacion_pendiente,
     rechazar_cotizacion_por_solicitud,
 )
@@ -47,6 +48,19 @@ def obtener_cotizaciones_pendientes_taller(
     current_user: User = Depends(get_current_user),
 ):
     return listar_cotizaciones_pendientes_taller(db, id_taller, current_user)
+
+
+@router.get(
+    "/{id_cotizacion}",
+    response_model=CotizacionConSolicitudResponse,
+    status_code=status.HTTP_200_OK,
+)
+def obtener_cotizacion(
+    id_cotizacion: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return obtener_cotizacion_por_id(db, id_cotizacion, current_user)
 
 
 @router.patch(

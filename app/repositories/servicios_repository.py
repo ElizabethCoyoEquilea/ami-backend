@@ -1,3 +1,4 @@
+from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import func
@@ -6,7 +7,11 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.models.solicitudes.asignacion import Asignacion
 from app.models.solicitudes.detalle_servicio import DetalleServicio
+from app.models.solicitudes.pago import Pago
+from app.models.solicitudes.solicitud import Solicitud
 from app.models.solicitudes.servicio import Servicio
+from app.models.usuarios.vehiculo import Vehiculo
+from app.models.usuarios.proveedor_servicio import ProveedorServicio
 from app.schemas.solicitudes.servicio_schema import DetalleServicioCreate, ServicioCreate
 
 
@@ -24,6 +29,11 @@ def get_servicio_by_id(db: Session, id_servicio: int) -> Servicio | None:
         db.query(Servicio)
         .options(
             joinedload(Servicio.asignacion).joinedload(Asignacion.taller),
+            joinedload(Servicio.asignacion)
+            .joinedload(Asignacion.solicitud)
+            .joinedload(Solicitud.vehiculo)
+            .joinedload(Vehiculo.cliente),
+            joinedload(Servicio.pago),
             joinedload(Servicio.detalles_servicio).joinedload(DetalleServicio.catalogo_servicio),
         )
         .filter(Servicio.id_servicio == id_servicio)
@@ -34,8 +44,63 @@ def get_servicio_by_id(db: Session, id_servicio: int) -> Servicio | None:
 def list_servicios_by_asignacion(db: Session, id_asignacion: int) -> list[Servicio]:
     return (
         db.query(Servicio)
-        .options(joinedload(Servicio.detalles_servicio).joinedload(DetalleServicio.catalogo_servicio))
+        .options(
+            joinedload(Servicio.asignacion)
+            .joinedload(Asignacion.solicitud)
+            .joinedload(Solicitud.vehiculo)
+            .joinedload(Vehiculo.cliente),
+            joinedload(Servicio.pago),
+            joinedload(Servicio.detalles_servicio).joinedload(DetalleServicio.catalogo_servicio),
+        )
         .filter(Servicio.id_asignacion == id_asignacion)
+        .order_by(Servicio.id_servicio)
+        .all()
+    )
+
+
+def list_servicios_by_taller(
+    db: Session,
+    id_taller: int,
+) -> list[Servicio]:
+    return (
+        db.query(Servicio)
+        .join(Asignacion, Asignacion.id_asignacion == Servicio.id_asignacion)
+        .options(
+            joinedload(Servicio.asignacion).joinedload(Asignacion.taller),
+            joinedload(Servicio.asignacion)
+            .joinedload(Asignacion.solicitud)
+            .joinedload(Solicitud.vehiculo)
+            .joinedload(Vehiculo.cliente),
+            joinedload(Servicio.pago),
+            joinedload(Servicio.detalles_servicio).joinedload(DetalleServicio.catalogo_servicio),
+        )
+        .filter(Asignacion.id_taller == id_taller)
+        .order_by(Servicio.id_servicio)
+        .all()
+    )
+
+
+def list_servicios_by_proveedor_usuario(
+    db: Session,
+    id_usuario: int,
+) -> list[Servicio]:
+    return (
+        db.query(Servicio)
+        .join(Asignacion, Asignacion.id_asignacion == Servicio.id_asignacion)
+        .join(
+            ProveedorServicio,
+            ProveedorServicio.id_proveedor == Asignacion.id_proveedor,
+        )
+        .options(
+            joinedload(Servicio.asignacion).joinedload(Asignacion.taller),
+            joinedload(Servicio.asignacion)
+            .joinedload(Asignacion.solicitud)
+            .joinedload(Solicitud.vehiculo)
+            .joinedload(Vehiculo.cliente),
+            joinedload(Servicio.pago),
+            joinedload(Servicio.detalles_servicio).joinedload(DetalleServicio.catalogo_servicio),
+        )
+        .filter(ProveedorServicio.id_usuario == id_usuario)
         .order_by(Servicio.id_servicio)
         .all()
     )
@@ -69,7 +134,7 @@ def create_servicio_with_detalles(
                 precio=precio,
                 sub_total=sub_total,
                 nombre=detalle_data.nombre,
-                descripcion=detalle_data.descripcion,
+                observacion=detalle_data.observacion,
             )
             db.add(detalle)
 
@@ -87,22 +152,24 @@ def create_servicio_with_detalles(
 def create_detalle_for_servicio(
     db: Session,
     id_servicio: int,
-    detalle_data: DetalleServicioCreate,
-) -> DetalleServicio:
+    detalles_data: list[DetalleServicioCreate],
+) -> Servicio:
     try:
-        precio = Decimal(str(detalle_data.precio))
-        sub_total = precio * Decimal(detalle_data.cantidad)
+        for detalle_data in detalles_data:
+            precio = Decimal(str(detalle_data.precio))
+            sub_total = precio * Decimal(detalle_data.cantidad)
 
-        detalle = DetalleServicio(
-            id_servicio=id_servicio,
-            id_catalogo_servicio=detalle_data.id_catalogo_servicio,
-            cantidad=detalle_data.cantidad,
-            precio=precio,
-            sub_total=sub_total,
-            nombre=detalle_data.nombre,
-            descripcion=detalle_data.descripcion,
-        )
-        db.add(detalle)
+            detalle = DetalleServicio(
+                id_servicio=id_servicio,
+                id_catalogo_servicio=detalle_data.id_catalogo_servicio,
+                cantidad=detalle_data.cantidad,
+                precio=precio,
+                sub_total=sub_total,
+                nombre=detalle_data.nombre,
+                observacion=detalle_data.observacion,
+            )
+            db.add(detalle)
+
         db.flush()
 
         total_servicio = (
@@ -114,10 +181,28 @@ def create_detalle_for_servicio(
         servicio = db.query(Servicio).filter(Servicio.id_servicio == id_servicio).first()
         if servicio:
             servicio.total = total_servicio
+            servicio.fecha_fin = datetime.now()
+            servicio.estado = "Pendiente de pago"
+            if servicio.pago:
+                servicio.pago.monto = total_servicio
+                servicio.pago.estado = "pendiente"
+                servicio.pago.fecha = None
+            else:
+                pago = Pago(
+                    monto=total_servicio,
+                    estado="pendiente",
+                    metodo=None,
+                    fecha=None,
+                )
+                db.add(pago)
+                db.flush()
+                servicio.id_pago = pago.id_pago
 
         db.commit()
-        db.refresh(detalle)
-        return detalle
+        servicio_actualizado = get_servicio_by_id(db, id_servicio)
+        if servicio_actualizado is None:
+            raise SQLAlchemyError("Servicio no encontrado despues de crear detalle")
+        return servicio_actualizado
     except SQLAlchemyError:
         db.rollback()
         raise

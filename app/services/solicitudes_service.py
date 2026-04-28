@@ -6,7 +6,8 @@ from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.repositories.solicitudes_repository import create_solicitud
+from app.models.usuarios.usuario import User
+from app.repositories.solicitudes_repository import create_solicitud, get_solicitud_by_id_for_user
 from app.repositories.vehiculos_repository import get_vehiculo_by_id
 from app.schemas.solicitudes.solicitud_schema import SolicitudCreate
 
@@ -39,7 +40,7 @@ def _guardar_archivo(upload: UploadFile, carpeta: str, tipo: str) -> str:
     with ruta_archivo.open("wb") as buffer:
         shutil.copyfileobj(upload.file, buffer)
 
-    return f"/uploads/{carpeta}/{nombre_archivo}"
+    return f"/uploads/solicitudes/{carpeta}/{nombre_archivo}"
 
 
 def registrar_solicitud(
@@ -82,3 +83,18 @@ def registrar_solicitud(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="No se pudo crear la solicitud",
         )
+
+
+def obtener_solicitud_por_id(
+    db: Session,
+    id_solicitud: int,
+    current_user: User,
+):
+    solicitud = get_solicitud_by_id_for_user(db, id_solicitud, current_user.id_usuario)
+    if not solicitud:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Solicitud no encontrada",
+        )
+
+    return solicitud

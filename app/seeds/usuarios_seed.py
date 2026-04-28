@@ -24,9 +24,20 @@ USUARIOS_INICIALES = [
         "email": "cee777578@gmail.com",
         "contrasena": "123456",
         "persona": {
-            "nombre_completo": "Elizaabeth Coyo Equilea",
+            "nombre_completo": "Elizabeth Coyo Equilea",
             "fecha_nacimiento": date(2001, 12, 31),
             "genero": "F",
+            "telefono": "71687109",
+            "documento": "12345678",
+        },
+    },
+    {
+        "email": "ayrton.daza.1231@gmail.com",
+        "contrasena": "123456",
+        "persona": {
+            "nombre_completo": "Ayrton2 Daza Miranda",
+            "fecha_nacimiento": date(2002, 12, 11),
+            "genero": "M",
             "telefono": "71687109",
             "documento": "12345678",
         },

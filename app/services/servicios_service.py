@@ -11,8 +11,11 @@ from app.repositories.servicios_repository import (
     get_asignacion_by_id,
     get_servicio_by_id,
     list_detalles_by_servicio,
+    list_servicios_by_proveedor_usuario,
     list_servicios_by_asignacion,
+    list_servicios_by_taller,
 )
+from app.repositories.talleres_repository import get_active_taller_by_id
 from app.schemas.solicitudes.servicio_schema import DetalleServicioCreate, ServicioCreate
 
 
@@ -52,7 +55,15 @@ def _obtener_servicio_propio(
         )
 
     asignacion = servicio.asignacion
-    if not asignacion or not asignacion.taller or asignacion.taller.id_usuario != id_usuario:
+    es_admin_taller = bool(
+        asignacion and asignacion.taller and asignacion.taller.id_usuario == id_usuario
+    )
+    es_proveedor_asignado = bool(
+        asignacion
+        and asignacion.proveedor_servicio
+        and asignacion.proveedor_servicio.id_usuario == id_usuario
+    )
+    if not es_admin_taller and not es_proveedor_asignado:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Servicio no encontrado para el usuario autenticado",
@@ -94,31 +105,71 @@ def listar_servicios_asignacion(
     return list_servicios_by_asignacion(db, id_asignacion)
 
 
+def listar_servicios_proveedor_actual(
+    db: Session,
+    id_usuario: int,
+) -> list[Servicio]:
+    return list_servicios_by_proveedor_usuario(db, id_usuario)
+
+
+def listar_servicios_taller(
+    db: Session,
+    id_taller: int,
+) -> list[Servicio]:
+    taller = get_active_taller_by_id(db, id_taller)
+    if not taller:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Taller no encontrado",
+        )
+
+    return list_servicios_by_taller(db, id_taller)
+
+
 def obtener_servicio(
     db: Session,
     id_servicio: int,
-    id_usuario: int,
 ) -> Servicio:
-    return _obtener_servicio_propio(db, id_servicio, id_usuario)
+    servicio = get_servicio_by_id(db, id_servicio)
+    if not servicio:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Servicio no encontrado",
+        )
+
+    return servicio
 
 
 def registrar_detalle_servicio(
     db: Session,
     id_servicio: int,
-    detalle_data: DetalleServicioCreate,
+    detalles_data: list[DetalleServicioCreate],
     id_usuario: int,
 ):
     _obtener_servicio_propio(db, id_servicio, id_usuario)
 
-    catalogo = get_active_catalogo_servicio_by_id(db, detalle_data.id_catalogo_servicio)
-    if not catalogo:
+    if not detalles_data:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Catalogo de servicio no encontrado",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Debe enviar al menos un detalle de servicio",
         )
 
+    for detalle_data in detalles_data:
+        catalogo = get_active_catalogo_servicio_by_id(db, detalle_data.id_catalogo_servicio)
+        if not catalogo:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Catalogo de servicio {detalle_data.id_catalogo_servicio} no encontrado",
+            )
+
     try:
-        return create_detalle_for_servicio(db, id_servicio, detalle_data)
+        servicio_actualizado = create_detalle_for_servicio(db, id_servicio, detalles_data)
+        return {
+            "servicio": servicio_actualizado,
+            "detalles": servicio_actualizado.detalles_servicio,
+            "pago": servicio_actualizado.pago,
+            "total": servicio_actualizado.total,
+        }
     except SQLAlchemyError:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -129,7 +180,12 @@ def registrar_detalle_servicio(
 def listar_detalles_servicio(
     db: Session,
     id_servicio: int,
-    id_usuario: int,
 ):
-    _obtener_servicio_propio(db, id_servicio, id_usuario)
+    servicio = get_servicio_by_id(db, id_servicio)
+    if not servicio:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Servicio no encontrado",
+        )
+
     return list_detalles_by_servicio(db, id_servicio)

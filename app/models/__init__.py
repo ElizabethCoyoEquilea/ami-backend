@@ -13,3 +13,4 @@ from .solicitudes.asignacion import Asignacion
 from .solicitudes.servicio import Servicio
 from .solicitudes.detalle_servicio import DetalleServicio
 from .solicitudes.pago import Pago
+from .solicitudes.calificacion import Calificacion

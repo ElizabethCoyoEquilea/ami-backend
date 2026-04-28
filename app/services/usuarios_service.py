@@ -24,7 +24,7 @@ from app.repositories.usuarios_repository import (
     get_user_by_email,
     get_role_by_id,
 )
-from app.schemas.usuarios.usuarios_schema import UserCreate
+from app.schemas.usuarios.usuarios_schema import CurrentUserUpdate, UserCreate
 from app.utils.email_sender import (
     send_verification_code_email,
     send_reset_password_email,
@@ -351,6 +351,44 @@ def get_current_provider_profile(db: Session, current_user: User):
     }
 
 
+def update_current_user_profile(
+    db: Session,
+    current_user: User,
+    payload: CurrentUserUpdate,
+) -> User:
+    update_data = payload.model_dump(exclude_unset=True)
+
+    nuevo_email = update_data.get("email")
+    if nuevo_email and nuevo_email != current_user.email:
+        existing_user = get_user_by_email(db, nuevo_email)
+        if existing_user and existing_user.id_usuario != current_user.id_usuario:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="El email ya esta registrado por otro usuario",
+            )
+        current_user.email = nuevo_email
+
+    nueva_contrasena = update_data.get("contrasena")
+    if nueva_contrasena:
+        current_user.contrasena = get_password_hash(nueva_contrasena)
+
+    persona_data = update_data.get("persona") or {}
+    for field, value in persona_data.items():
+        setattr(current_user.persona, field, value)
+
+    try:
+        db.commit()
+        db.refresh(current_user)
+        db.refresh(current_user.persona)
+        return current_user
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="No se pudo actualizar el usuario",
+        )
+
+
 def _create_taller_invitation_token(
     invited_user_id: int,
     email: str,
@@ -540,7 +578,7 @@ def accept_taller_invitation(db: Session, token: str):
         proveedor_servicio = ProveedorServicio(
             id_usuario=invited_user.id_usuario,
             id_taller=taller.id_taller,
-            estado=None,
+            estado="Disponible",
             especialidad=None,
         )
         db.add(proveedor_servicio)

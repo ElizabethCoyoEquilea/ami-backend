@@ -9,6 +9,7 @@ from app.models.talleres.taller import Taller
 from app.models.usuarios.usuario import User
 from app.models.usuarios.usuario_rol import UsuarioRol
 from app.models.usuarios.proveedor_servicio import ProveedorServicio
+from app.models.usuarios.vehiculo import Vehiculo
 from app.schemas.talleres.taller_schema import TallerCreate, TallerUpdate
 
 
@@ -159,7 +160,11 @@ def get_active_provider_assignment_by_user_and_taller(
 def get_asignacion_with_solicitud_by_id(db: Session, id_asignacion: int) -> Asignacion | None:
     return (
         db.query(Asignacion)
-        .options(joinedload(Asignacion.solicitud).joinedload(Solicitud.vehiculo))
+        .options(
+            joinedload(Asignacion.solicitud)
+            .joinedload(Solicitud.vehiculo)
+            .joinedload(Vehiculo.cliente)
+        )
         .filter(Asignacion.id_asignacion == id_asignacion)
         .first()
     )
