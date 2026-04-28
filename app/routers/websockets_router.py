@@ -12,13 +12,13 @@ from app.models.solicitudes.asignacion import Asignacion
 from app.models.solicitudes.cotizacion import Cotizacion
 from app.models.solicitudes.servicio import Servicio
 from app.models.solicitudes.solicitud import Solicitud
-from app.models.usuarios.cliente import Cliente
 from app.models.usuarios.usuario import User
 from app.repositories.talleres_repository import (
     get_active_provider_assignment_by_user_and_taller,
     get_active_taller_by_id,
     get_asignacion_with_solicitud_by_id,
     list_active_provider_assignments_by_user,
+    list_talleres_by_usuario,
 )
 from app.services.cotizaciones_service import (
     procesar_respuesta_cotizacion_cliente,
@@ -52,7 +52,6 @@ async def websocket_clients(websocket: WebSocket, token: str):
         id_usuario = int(payload.get("sub"))
         usuario = (
             db.query(User)
-            .join(Cliente, Cliente.id_usuario == User.id_usuario)
             .filter(User.id_usuario == id_usuario, User.activo.is_(True))
             .first()
         )
@@ -359,17 +358,19 @@ async def websocket_provider(websocket: WebSocket, token: str):
             return
 
         provider_assignments = list_active_provider_assignments_by_user(db, id_usuario)
-        if not provider_assignments:
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-            return
-
-        allowed_taller_ids = {assignment.id_taller for assignment in provider_assignments}
+        owned_talleres = list_talleres_by_usuario(db, id_usuario)
+        allowed_taller_ids = {
+            assignment.id_taller for assignment in provider_assignments
+        } | {
+            taller.id_taller for taller in owned_talleres if taller.activo
+        }
 
         await providers_ws_manager.connect(id_usuario, websocket)
         logger.info(
-            "connection_open user=%s total_empresas=%s talleres=%s",
+            "connection_open user=%s total_empresas=%s total_talleres_propios=%s talleres=%s",
             id_usuario,
             len(provider_assignments),
+            len(owned_talleres),
             sorted(allowed_taller_ids),
         )
         await _send_provider_json(
@@ -380,6 +381,7 @@ async def websocket_provider(websocket: WebSocket, token: str):
                 "data": {
                     "id_usuario": id_usuario,
                     "total_empresas": len(provider_assignments),
+                    "total_talleres_propios": len(owned_talleres),
                 },
             },
         )
@@ -517,7 +519,7 @@ async def websocket_provider(websocket: WebSocket, token: str):
                         db.add(servicio_creado)
                     else:
                         asignacion.id_proveedor = None
-                        asignacion.estado = " de asignar personal"
+                        asignacion.estado = "Pendiente de asignar personal"
 
                     db.commit()
                     db.refresh(asignacion)

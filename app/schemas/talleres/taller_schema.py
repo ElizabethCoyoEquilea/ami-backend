@@ -1,4 +1,4 @@
-from datetime import time
+from datetime import datetime, time
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -171,3 +171,20 @@ class ListarProveedoresResponse(BaseModel):
     id_taller: int
     total_proveedores: int
     proveedores: list[ProveedorServicioResponse]
+
+
+class TallerDashboardHoyResponse(BaseModel):
+    id_taller: int
+    fecha: str
+    generado_en: datetime
+    total_proveedores: int
+    proveedores_disponibles: int
+    ingresos_hoy: float
+    ingresos_mes_anterior_mismo_dia: float
+    variacion_ingresos_vs_mes_anterior: float | None
+    servicios_finalizados_hoy: int
+    servicios_finalizados_semana: int
+    calificacion_promedio: float
+    total_resenas: int
+    operaciones: dict
+    servicios_por_mes: dict

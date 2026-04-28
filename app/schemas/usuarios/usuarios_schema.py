@@ -25,6 +25,14 @@ class PersonaResponse(PersonaBase):
         from_attributes = True
 
 
+class PersonaUpdate(BaseModel):
+    nombre_completo: str | None = Field(default=None, min_length=1, max_length=150)
+    fecha_nacimiento: date | None = None
+    genero: str | None = Field(default=None, max_length=1)
+    telefono: str | None = Field(default=None, max_length=20)
+    documento: str | None = Field(default=None, max_length=50)
+
+
 # ==============================
 # SCHEMAS USUARIO
 # ==============================
@@ -45,6 +53,12 @@ class UserResponse(UserBase):
 
     class Config:
         from_attributes = True
+
+
+class CurrentUserUpdate(BaseModel):
+    email: EmailStr | None = None
+    contrasena: str | None = Field(default=None, min_length=6, max_length=255)
+    persona: PersonaUpdate | None = None
 
 
 # ==============================

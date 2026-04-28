@@ -1,19 +1,30 @@
+import asyncio
+import logging
 from datetime import time
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect, status
+from fastapi.encoders import jsonable_encoder
+from jose import JWTError
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
-from app.core.security import get_current_user
+from app.core.database import SessionLocal, get_db
+from app.core.security import get_current_user, verify_token
 from app.models.usuarios.usuario import User
 from app.schemas.solicitudes.asignacion_schema import AsignacionConSolicitudResponse
-from app.schemas.talleres.taller_schema import TallerCreate, TallerResponse, TallerUpdate, ListarProveedoresResponse
+from app.schemas.talleres.taller_schema import (
+    ListarProveedoresResponse,
+    TallerCreate,
+    TallerDashboardHoyResponse,
+    TallerResponse,
+    TallerUpdate,
+)
 from app.schemas.usuarios.usuarios_schema import MessageResponse
 from app.services.talleres_service import (
     eliminar_taller,
     listar_talleres_por_usuario,
     listar_talleres,
     modificar_taller,
+    obtener_dashboard_taller_hoy,
     obtener_taller,
     registrar_taller,
     listar_proveedores_taller,
@@ -22,6 +33,7 @@ from app.services.talleres_service import (
 
 
 router = APIRouter(prefix="/talleres", tags=["Talleres"])
+logger = logging.getLogger("talleres")
 
 
 @router.post("", response_model=TallerResponse, status_code=status.HTTP_201_CREATED)
@@ -68,6 +80,19 @@ def obtener_mis_talleres(
     current_user: User = Depends(get_current_user),
 ):
     return listar_talleres_por_usuario(db, current_user.id_usuario)
+
+
+@router.get(
+    "/{id_taller}/dashboard/hoy",
+    response_model=TallerDashboardHoyResponse,
+    status_code=status.HTTP_200_OK,
+)
+def obtener_dashboard_hoy_taller(
+    id_taller: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return obtener_dashboard_taller_hoy(db, id_taller, current_user.id_usuario)
 
 
 @router.get("/{id_taller}", response_model=TallerResponse, status_code=status.HTTP_200_OK)
@@ -154,3 +179,43 @@ def obtener_asignaciones_taller(
     current_user: User = Depends(get_current_user),
 ):
     return listar_asignaciones_taller(db, id_taller)
+
+
+@router.websocket("/{id_taller}/dashboard/ws")
+async def websocket_dashboard_taller(
+    websocket: WebSocket,
+    id_taller: int,
+    token: str,
+    intervalo_segundos: int = 5,
+):
+    db = SessionLocal()
+    id_usuario: int | None = None
+    intervalo = max(2, min(intervalo_segundos, 60))
+
+    try:
+        payload = verify_token(token)
+        id_usuario = int(payload.get("sub"))
+        usuario = db.query(User).filter(User.id_usuario == id_usuario, User.activo.is_(True)).first()
+        if not usuario:
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+            return
+
+        await websocket.accept()
+        logger.info("dashboard_ws_open user=%s id_taller=%s intervalo=%s", id_usuario, id_taller, intervalo)
+
+        while True:
+            resumen = obtener_dashboard_taller_hoy(db, id_taller, id_usuario)
+            await websocket.send_json(
+                jsonable_encoder({
+                    "tipo": "dashboard_taller_actualizado",
+                    "data": resumen,
+                })
+            )
+            await asyncio.sleep(intervalo)
+    except (HTTPException, JWTError, TypeError, ValueError):
+        logger.exception("dashboard_ws_closed_by_error user=%s id_taller=%s", id_usuario, id_taller)
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+    except WebSocketDisconnect:
+        logger.info("dashboard_ws_closed user=%s id_taller=%s", id_usuario, id_taller)
+    finally:
+        db.close()

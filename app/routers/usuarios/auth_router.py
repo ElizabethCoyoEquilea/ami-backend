@@ -14,8 +14,10 @@ from app.schemas.usuarios.usuarios_schema import (
     CreateClientResponse,
     ClientAssignmentResponse,
     CurrentProviderProfileResponse,
+    CurrentUserUpdate,
     TallerInvitationCreateSchema,
     TallerInvitationCreateResponse,
+    UserResponse,
 )
 from app.repositories.usuarios_repository import get_user_by_email
 from app.models.usuarios.usuario import User
@@ -24,6 +26,7 @@ from app.services.usuarios_service import (
     create_client_for_current_user,
     check_current_user_is_client,
     get_current_provider_profile,
+    update_current_user_profile,
     send_taller_invitation,
     accept_taller_invitation,
 )
@@ -232,6 +235,15 @@ def get_me(current_user: User = Depends(get_current_user)):
             "documento": current_user.persona.documento,
         }
     }
+
+
+@router.patch("/me", response_model=UserResponse, status_code=status.HTTP_200_OK)
+def update_me(
+    payload: CurrentUserUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return update_current_user_profile(db, current_user, payload)
 
 
 @router.post("/reset-password", response_model=ResultMessageResponse, status_code=status.HTTP_200_OK)
