@@ -54,3 +54,5 @@ pip install -r requirements.txt
 
 ### Para ejecutar el proyecto
 uvicorn app.main:app --reload
+
+python -c "from app.seeds import run_seeds; run_seeds()
