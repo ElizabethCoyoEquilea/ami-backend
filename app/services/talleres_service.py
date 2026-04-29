@@ -111,7 +111,7 @@ def _sumar_ingresos_taller_en_rango(
             Servicio.estado == "pagado",
             Servicio.fecha_fin >= inicio,
             Servicio.fecha_fin < fin,
-            Pago.estado.in_(("pagado", "completado")),
+            Pago.estado == "pagado",
         )
         .scalar()
     )
@@ -500,14 +500,12 @@ def obtener_reporte_financiero_taller(
 
     inicio = datetime.combine(fecha_inicio, datetime.min.time())
     fin_exclusivo = datetime.combine(fecha_fin + timedelta(days=1), datetime.min.time())
-    estados_pago_completado = ("pagado", "completado")
-
     filtros_pagos_completados = (
         Asignacion.id_taller == id_taller,
         Pago.fecha.is_not(None),
         Pago.fecha >= inicio,
         Pago.fecha < fin_exclusivo,
-        func.lower(Pago.estado).in_(estados_pago_completado),
+        func.lower(Pago.estado) == "pagado",
     )
 
     resumen = (

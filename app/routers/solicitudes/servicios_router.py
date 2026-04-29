@@ -4,6 +4,11 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.usuarios.usuario import User
+from app.schemas.solicitudes.calificacion_schema import (
+    CalificacionCreate,
+    CalificacionResponse,
+    ServicioTieneCalificacionResponse,
+)
 from app.schemas.solicitudes.servicio_schema import (
     DetalleServicioCreate,
     DetalleServicioResponse,
@@ -11,6 +16,10 @@ from app.schemas.solicitudes.servicio_schema import (
     ServicioFacturaResponse,
     ServicioResponse,
     ServicioResumenResponse,
+)
+from app.services.calificaciones_service import (
+    registrar_calificacion_servicio,
+    servicio_tiene_calificacion,
 )
 from app.services.servicios_service import (
     anular_servicio,
@@ -94,6 +103,33 @@ def anular_servicio_por_id(
     current_user: User = Depends(get_current_user),
 ):
     return anular_servicio(db, id_servicio)
+
+
+@router.post(
+    "/{id_servicio}/calificacion",
+    response_model=CalificacionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def calificar_servicio(
+    id_servicio: int,
+    calificacion_data: CalificacionCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return registrar_calificacion_servicio(db, id_servicio, calificacion_data)
+
+
+@router.get(
+    "/{id_servicio}/tiene-calificacion",
+    response_model=ServicioTieneCalificacionResponse,
+    status_code=status.HTTP_200_OK,
+)
+def verificar_servicio_tiene_calificacion(
+    id_servicio: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return servicio_tiene_calificacion(db, id_servicio)
 
 
 @router.post(

@@ -49,6 +49,7 @@ def update_pago(db: Session, pago: Pago, pago_data: PagoUpdate) -> Pago:
         update_data = pago_data.model_dump(exclude_unset=True)
         if "monto" in update_data and update_data["monto"] is not None:
             update_data["monto"] = Decimal(str(update_data["monto"]))
+        update_data["estado"] = "pagado"
 
         for field, value in update_data.items():
             setattr(pago, field, value)
