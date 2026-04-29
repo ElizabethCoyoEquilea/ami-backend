@@ -42,6 +42,7 @@ class SolicitudResponse(BaseModel):
     audio: str | None
     imagenes: list[str] | None
     estado: str
+    recomendacion: str | None = None
 
     class Config:
         from_attributes = True

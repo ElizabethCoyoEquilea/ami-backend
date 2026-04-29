@@ -1,3 +1,4 @@
+import logging
 import shutil
 from pathlib import Path
 from uuid import uuid4
@@ -7,13 +8,37 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.models.usuarios.usuario import User
-from app.repositories.solicitudes_repository import create_solicitud, get_solicitud_by_id_for_user
+from app.repositories.solicitudes_repository import (
+    create_solicitud,
+    get_solicitud_by_id_for_user,
+    update_solicitud_ai_analysis,
+)
 from app.repositories.vehiculos_repository import get_vehiculo_by_id
 from app.schemas.solicitudes.solicitud_schema import SolicitudCreate
+from app.services.gemini_solicitud_analysis_service import analyze_solicitud_with_gemini
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 UPLOADS_ROOT = PROJECT_ROOT / "uploads" / "solicitudes"
+logger = logging.getLogger("solicitudes")
+
+
+def _solicitud_response_con_recomendacion(solicitud, recomendacion: str | None = None) -> dict:
+    return {
+        "id_solicitud": solicitud.id_solicitud,
+        "id_vehiculo": solicitud.id_vehiculo,
+        "descripcion": solicitud.descripcion,
+        "latitud": solicitud.latitud,
+        "direccion": solicitud.direccion,
+        "longitud": solicitud.longitud,
+        "fecha": solicitud.fecha,
+        "prioridad": solicitud.prioridad,
+        "observaciones": solicitud.observaciones,
+        "audio": solicitud.audio,
+        "imagenes": solicitud.imagenes,
+        "estado": solicitud.estado,
+        "recomendacion": recomendacion,
+    }
 
 
 def _guardar_archivo(upload: UploadFile, carpeta: str, tipo: str) -> str:
@@ -77,12 +102,32 @@ def registrar_solicitud(
     )
 
     try:
-        return create_solicitud(db, solicitud_data)
+        solicitud = create_solicitud(db, solicitud_data)
     except SQLAlchemyError:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="No se pudo crear la solicitud",
         )
+
+    recomendacion = None
+    try:
+        analisis_ia = analyze_solicitud_with_gemini(
+            descripcion=solicitud.descripcion,
+            imagenes=solicitud.imagenes,
+        )
+        if analisis_ia:
+            solicitud = update_solicitud_ai_analysis(
+                db=db,
+                solicitud=solicitud,
+                prioridad=analisis_ia.get("prioridad"),
+                observaciones=analisis_ia.get("observaciones"),
+            )
+            recomendacion = analisis_ia.get("recomendacion")
+    except Exception:
+        logger.exception("No se pudo analizar la solicitud con Gemini id_solicitud=%s", solicitud.id_solicitud)
+        recomendacion = None
+
+    return _solicitud_response_con_recomendacion(solicitud, recomendacion)
 
 
 def obtener_solicitud_por_id(
@@ -97,4 +142,4 @@ def obtener_solicitud_por_id(
             detail="Solicitud no encontrada",
         )
 
-    return solicitud
+    return _solicitud_response_con_recomendacion(solicitud)
