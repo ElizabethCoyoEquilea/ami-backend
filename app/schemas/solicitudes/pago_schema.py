@@ -27,3 +27,52 @@ class PagoUpdate(BaseModel):
             return value
         value = value.strip()
         return value or None
+
+
+class PagoClienteVehiculoResponse(BaseModel):
+    id_vehiculo: int
+    marca: str
+    modelo: str
+    placa: str
+
+
+class PagoClienteSolicitudResponse(BaseModel):
+    id_solicitud: int
+    descripcion: str
+    fecha: datetime
+    estado: str
+
+
+class PagoClienteAsignacionResponse(BaseModel):
+    id_asignacion: int
+    id_taller: int
+    id_proveedor: int | None
+    fecha: datetime
+    estado: str
+
+
+class PagoClienteDetalleServicioResponse(BaseModel):
+    id_detalle_servicio: int
+    id_catalogo_servicio: int
+    nombre: str
+    cantidad: int
+    precio: float
+    sub_total: float
+    observacion: str | None
+
+
+class PagoClienteServicioResponse(BaseModel):
+    id_servicio: int
+    total: float
+    fecha_inicio: datetime | None
+    fecha_fin: datetime | None
+    estado: str
+    detalles_servicio: list[PagoClienteDetalleServicioResponse]
+
+
+class PagoClienteResponse(BaseModel):
+    pago: PagoResponse
+    servicio: PagoClienteServicioResponse
+    asignacion: PagoClienteAsignacionResponse
+    solicitud: PagoClienteSolicitudResponse
+    vehiculo: PagoClienteVehiculoResponse

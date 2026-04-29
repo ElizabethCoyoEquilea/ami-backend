@@ -212,6 +212,7 @@ class ReporteTecnicoCantidadResponse(BaseModel):
 
 class ReporteOperativoResumenResponse(BaseModel):
     total_servicios_completados: int
+    total_servicios_cancelados: int
     tiempo_promedio_atencion_minutos: int
     calificacion_promedio_atencion: float
 

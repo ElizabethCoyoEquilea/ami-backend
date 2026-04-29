@@ -2,7 +2,11 @@ from fastapi import HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.repositories.pagos_repository import get_pago_by_id, update_pago
+from app.repositories.pagos_repository import (
+    get_pago_by_id,
+    list_pagos_pagados_by_cliente_usuario,
+    update_pago,
+)
 from app.schemas.solicitudes.pago_schema import PagoUpdate
 
 
@@ -15,6 +19,72 @@ def obtener_pago(db: Session, id_pago: int):
         )
 
     return pago
+
+
+def listar_pagos_cliente(db: Session, id_usuario: int) -> list[dict]:
+    pagos = list_pagos_pagados_by_cliente_usuario(db, id_usuario)
+    response = []
+
+    for pago in pagos:
+        servicio = pago.servicio
+        asignacion = servicio.asignacion if servicio else None
+        solicitud = asignacion.solicitud if asignacion else None
+        vehiculo = solicitud.vehiculo if solicitud else None
+
+        if not servicio or not asignacion or not solicitud or not vehiculo:
+            continue
+
+        response.append(
+            {
+                "pago": {
+                    "id_pago": pago.id_pago,
+                    "monto": float(pago.monto),
+                    "estado": pago.estado,
+                    "metodo": pago.metodo,
+                    "fecha": pago.fecha,
+                },
+                "servicio": {
+                    "id_servicio": servicio.id_servicio,
+                    "total": float(servicio.total or 0),
+                    "fecha_inicio": servicio.fecha_inicio,
+                    "fecha_fin": servicio.fecha_fin,
+                    "estado": servicio.estado,
+                    "detalles_servicio": [
+                        {
+                            "id_detalle_servicio": detalle.id_detalle_servicio,
+                            "id_catalogo_servicio": detalle.id_catalogo_servicio,
+                            "nombre": detalle.nombre,
+                            "cantidad": detalle.cantidad,
+                            "precio": float(detalle.precio),
+                            "sub_total": float(detalle.sub_total),
+                            "observacion": detalle.observacion,
+                        }
+                        for detalle in servicio.detalles_servicio
+                    ],
+                },
+                "asignacion": {
+                    "id_asignacion": asignacion.id_asignacion,
+                    "id_taller": asignacion.id_taller,
+                    "id_proveedor": asignacion.id_proveedor,
+                    "fecha": asignacion.fecha,
+                    "estado": asignacion.estado,
+                },
+                "solicitud": {
+                    "id_solicitud": solicitud.id_solicitud,
+                    "descripcion": solicitud.descripcion,
+                    "fecha": solicitud.fecha,
+                    "estado": solicitud.estado,
+                },
+                "vehiculo": {
+                    "id_vehiculo": vehiculo.id_vehiculo,
+                    "marca": vehiculo.marca,
+                    "modelo": vehiculo.modelo,
+                    "placa": vehiculo.placa,
+                },
+            }
+        )
+
+    return response
 
 
 def modificar_pago(db: Session, id_pago: int, pago_data: PagoUpdate):

@@ -379,6 +379,18 @@ def obtener_reporte_operativo_taller(
         .scalar()
         or 0
     )
+    total_servicios_cancelados = (
+        db.query(func.count(Servicio.id_servicio))
+        .join(Asignacion, Asignacion.id_asignacion == Servicio.id_asignacion)
+        .filter(
+            Asignacion.id_taller == id_taller,
+            func.coalesce(Servicio.fecha_fin, Servicio.fecha_inicio, Asignacion.fecha) >= inicio,
+            func.coalesce(Servicio.fecha_fin, Servicio.fecha_inicio, Asignacion.fecha) < fin_exclusivo,
+            func.lower(Servicio.estado) == "anulado",
+        )
+        .scalar()
+        or 0
+    )
 
     tiempo_promedio = (
         db.query(func.avg(func.extract("epoch", Servicio.fecha_fin - Servicio.fecha_inicio) / 60))
@@ -453,6 +465,7 @@ def obtener_reporte_operativo_taller(
         "generado_en": datetime.now(LA_PAZ_TZ),
         "resumen_general": {
             "total_servicios_completados": int(total_servicios),
+            "total_servicios_cancelados": int(total_servicios_cancelados),
             "tiempo_promedio_atencion_minutos": round(float(tiempo_promedio or 0)),
             "calificacion_promedio_atencion": round(float(calificacion_promedio or 0), 1),
         },
