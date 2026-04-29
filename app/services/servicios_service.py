@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.models.solicitudes.asignacion import Asignacion
 from app.models.solicitudes.servicio import Servicio
+from app.models.usuarios.proveedor_servicio import ProveedorServicio
 from app.repositories.catalogo_servicio_repository import get_active_catalogo_servicio_by_id
 from app.repositories.servicios_repository import (
     create_detalle_for_servicio,
@@ -14,6 +15,7 @@ from app.repositories.servicios_repository import (
     list_servicios_by_proveedor_usuario,
     list_servicios_by_asignacion,
     list_servicios_by_taller,
+    update_servicio_estado,
 )
 from app.repositories.talleres_repository import get_active_taller_by_id
 from app.schemas.solicitudes.servicio_schema import DetalleServicioCreate, ServicioCreate
@@ -138,6 +140,42 @@ def obtener_servicio(
         )
 
     return servicio
+
+
+def anular_servicio(
+    db: Session,
+    id_servicio: int,
+) -> Servicio:
+    servicio = get_servicio_by_id(db, id_servicio)
+    if not servicio:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Servicio no encontrado",
+        )
+
+    try:
+        # Anular el servicio
+        servicio_anulado = update_servicio_estado(db, servicio, "Anulado")
+        
+        # Obtener el proveedor asignado a ese servicio
+        proveedor = (
+            db.query(ProveedorServicio)
+            .join(Asignacion, Asignacion.id_proveedor == ProveedorServicio.id_proveedor)
+            .filter(Asignacion.id_asignacion == servicio.id_asignacion)
+            .first()
+        )
+        
+        # Actualizar el estado del proveedor a Disponible
+        if proveedor:
+            proveedor.estado = "Disponible"
+            db.commit()
+        
+        return servicio_anulado
+    except SQLAlchemyError:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="No se pudo anular el servicio",
+        )
 
 
 def registrar_detalle_servicio(

@@ -132,6 +132,15 @@ class TallerResponse(BaseModel):
         from_attributes = True
 
 
+class TallerRecomendadoResponse(BaseModel):
+    id_taller: int
+    nombre: str
+    distancia_km: float
+    calificacion: float
+    score: float
+    motivo_recomendacion: str
+
+
 # ==============================
 # SCHEMAS PROVEEDOR SERVICIO
 # ==============================

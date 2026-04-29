@@ -17,9 +17,11 @@ from app.schemas.talleres.taller_schema import (
     TallerDashboardHoyResponse,
     TallerReporteFinancieroResponse,
     TallerReporteOperativoResponse,
+    TallerRecomendadoResponse,
     TallerResponse,
     TallerUpdate,
 )
+from app.repositories.solicitudes_repository import get_solicitud_by_id
 from app.schemas.usuarios.usuarios_schema import MessageResponse
 from app.services.talleres_service import (
     eliminar_taller,
@@ -34,6 +36,7 @@ from app.services.talleres_service import (
     listar_proveedores_taller,
     listar_asignaciones_taller,
 )
+from app.services.workshop_recommendation_service import recommend_workshops
 
 
 router = APIRouter(prefix="/talleres", tags=["Talleres"])
@@ -84,6 +87,36 @@ def obtener_mis_talleres(
     current_user: User = Depends(get_current_user),
 ):
     return listar_talleres_por_usuario(db, current_user.id_usuario)
+
+
+@router.get(
+    "/recomendados",
+    response_model=list[TallerRecomendadoResponse],
+    status_code=status.HTTP_200_OK,
+)
+def obtener_talleres_recomendados(
+    id_solicitud: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    solicitud = get_solicitud_by_id(db, id_solicitud)
+    if not solicitud:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Solicitud no encontrada",
+        )
+
+    if solicitud.latitud is None or solicitud.longitud is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La solicitud no tiene latitud o longitud",
+        )
+
+    return recommend_workshops(
+        db=db,
+        client_lat=solicitud.latitud,
+        client_lng=solicitud.longitud,
+    )
 
 
 @router.get(

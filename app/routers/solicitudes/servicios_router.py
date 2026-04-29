@@ -13,6 +13,7 @@ from app.schemas.solicitudes.servicio_schema import (
     ServicioResumenResponse,
 )
 from app.services.servicios_service import (
+    anular_servicio,
     listar_detalles_servicio,
     listar_servicios_proveedor_actual,
     listar_servicios_asignacion,
@@ -80,6 +81,19 @@ def obtener_servicio_por_id(
     current_user: User = Depends(get_current_user),
 ):
     return obtener_servicio(db, id_servicio)
+
+
+@router.patch(
+    "/{id_servicio}/anularservicio",
+    response_model=ServicioResponse,
+    status_code=status.HTTP_200_OK,
+)
+def anular_servicio_por_id(
+    id_servicio: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return anular_servicio(db, id_servicio)
 
 
 @router.post(
