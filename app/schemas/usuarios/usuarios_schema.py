@@ -1,5 +1,5 @@
 from datetime import date, time
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 # ==============================
@@ -66,8 +66,16 @@ class CurrentUserUpdate(BaseModel):
 # ==============================
 
 class LoginSchema(BaseModel):
-    email: EmailStr
+    email: str = Field(min_length=3, max_length=100)
     contrasena: str = Field(min_length=6, max_length=255)
+
+    @field_validator("email")
+    @classmethod
+    def limpiar_email(cls, value: str) -> str:
+        value = value.strip().lower()
+        if "@" not in value:
+            raise ValueError("Email invalido")
+        return value
 
 
 class TokenResponse(BaseModel):

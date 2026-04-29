@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from datetime import time
+from datetime import date, time
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect, status
 from fastapi.encoders import jsonable_encoder
@@ -15,6 +15,8 @@ from app.schemas.talleres.taller_schema import (
     ListarProveedoresResponse,
     TallerCreate,
     TallerDashboardHoyResponse,
+    TallerReporteFinancieroResponse,
+    TallerReporteOperativoResponse,
     TallerResponse,
     TallerUpdate,
 )
@@ -25,6 +27,8 @@ from app.services.talleres_service import (
     listar_talleres,
     modificar_taller,
     obtener_dashboard_taller_hoy,
+    obtener_reporte_financiero_taller,
+    obtener_reporte_operativo_taller,
     obtener_taller,
     registrar_taller,
     listar_proveedores_taller,
@@ -93,6 +97,48 @@ def obtener_dashboard_hoy_taller(
     current_user: User = Depends(get_current_user),
 ):
     return obtener_dashboard_taller_hoy(db, id_taller, current_user.id_usuario)
+
+
+@router.get(
+    "/{id_taller}/reportes/operativo",
+    response_model=TallerReporteOperativoResponse,
+    status_code=status.HTTP_200_OK,
+)
+def obtener_reporte_operativo(
+    id_taller: int,
+    fecha_inicio: date,
+    fecha_fin: date,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return obtener_reporte_operativo_taller(
+        db=db,
+        id_taller=id_taller,
+        id_usuario=current_user.id_usuario,
+        fecha_inicio=fecha_inicio,
+        fecha_fin=fecha_fin,
+    )
+
+
+@router.get(
+    "/{id_taller}/reportes/financiero",
+    response_model=TallerReporteFinancieroResponse,
+    status_code=status.HTTP_200_OK,
+)
+def obtener_reporte_financiero(
+    id_taller: int,
+    fecha_inicio: date,
+    fecha_fin: date,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return obtener_reporte_financiero_taller(
+        db=db,
+        id_taller=id_taller,
+        id_usuario=current_user.id_usuario,
+        fecha_inicio=fecha_inicio,
+        fecha_fin=fecha_fin,
+    )
 
 
 @router.get("/{id_taller}", response_model=TallerResponse, status_code=status.HTTP_200_OK)
