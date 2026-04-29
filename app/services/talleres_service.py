@@ -1,6 +1,6 @@
 import shutil
 from calendar import monthrange
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from uuid import uuid4
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -15,8 +15,11 @@ from app.models.solicitudes.calificacion import Calificacion
 from app.models.solicitudes.cotizacion import Cotizacion
 from app.models.solicitudes.pago import Pago
 from app.models.solicitudes.servicio import Servicio
+from app.models.solicitudes.detalle_servicio import DetalleServicio
 from app.models.talleres.taller import Taller
+from app.models.usuarios.persona import Persona
 from app.models.usuarios.proveedor_servicio import ProveedorServicio
+from app.models.usuarios.usuario import User
 from app.repositories.talleres_repository import (
     create_taller,
     get_active_taller_by_id,
@@ -108,7 +111,7 @@ def _sumar_ingresos_taller_en_rango(
             Servicio.estado == "pagado",
             Servicio.fecha_fin >= inicio,
             Servicio.fecha_fin < fin,
-            Pago.estado.in_(("pagado", "completado")),
+            Pago.estado == "pagado",
         )
         .scalar()
     )
@@ -334,6 +337,273 @@ def obtener_dashboard_taller_hoy(db: Session, id_taller: int, id_usuario: int) -
             "servicios_en_curso": int(servicios_en_curso),
         },
         "servicios_por_mes": _conteo_servicios_por_mes(db, id_taller, ahora.year),
+    }
+
+
+def obtener_reporte_operativo_taller(
+    db: Session,
+    id_taller: int,
+    id_usuario: int,
+    fecha_inicio: date,
+    fecha_fin: date,
+) -> dict:
+    taller = get_active_taller_by_id(db, id_taller)
+    if not taller or taller.id_usuario != id_usuario:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Taller no encontrado",
+        )
+
+    if fecha_inicio > fecha_fin:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="fecha_inicio debe ser menor o igual que fecha_fin",
+        )
+
+    inicio = datetime.combine(fecha_inicio, datetime.min.time())
+    fin_exclusivo = datetime.combine(fecha_fin + timedelta(days=1), datetime.min.time())
+    estados_completados = ("pagado", "completado", "pendiente de pago")
+
+    filtros_servicios_completados = (
+        Asignacion.id_taller == id_taller,
+        Servicio.fecha_fin.is_not(None),
+        Servicio.fecha_fin >= inicio,
+        Servicio.fecha_fin < fin_exclusivo,
+        func.lower(Servicio.estado).in_(estados_completados),
+    )
+
+    total_servicios = (
+        db.query(func.count(Servicio.id_servicio))
+        .join(Asignacion, Asignacion.id_asignacion == Servicio.id_asignacion)
+        .filter(*filtros_servicios_completados)
+        .scalar()
+        or 0
+    )
+    total_servicios_cancelados = (
+        db.query(func.count(Servicio.id_servicio))
+        .join(Asignacion, Asignacion.id_asignacion == Servicio.id_asignacion)
+        .filter(
+            Asignacion.id_taller == id_taller,
+            func.coalesce(Servicio.fecha_fin, Servicio.fecha_inicio, Asignacion.fecha) >= inicio,
+            func.coalesce(Servicio.fecha_fin, Servicio.fecha_inicio, Asignacion.fecha) < fin_exclusivo,
+            func.lower(Servicio.estado) == "anulado",
+        )
+        .scalar()
+        or 0
+    )
+
+    tiempo_promedio = (
+        db.query(func.avg(func.extract("epoch", Servicio.fecha_fin - Servicio.fecha_inicio) / 60))
+        .join(Asignacion, Asignacion.id_asignacion == Servicio.id_asignacion)
+        .filter(
+            *filtros_servicios_completados,
+            Servicio.fecha_inicio.is_not(None),
+        )
+        .scalar()
+        or 0
+    )
+
+    calificacion_promedio = (
+        db.query(func.avg(Calificacion.puntuacion))
+        .join(Servicio, Servicio.id_servicio == Calificacion.id_servicio)
+        .join(Asignacion, Asignacion.id_asignacion == Servicio.id_asignacion)
+        .filter(*filtros_servicios_completados)
+        .scalar()
+        or 0
+    )
+
+    servicios_por_tipo_rows = (
+        db.query(
+            DetalleServicio.nombre.label("nombre"),
+            func.count(func.distinct(Servicio.id_servicio)).label("cantidad"),
+        )
+        .join(Servicio, Servicio.id_servicio == DetalleServicio.id_servicio)
+        .join(Asignacion, Asignacion.id_asignacion == Servicio.id_asignacion)
+        .filter(*filtros_servicios_completados)
+        .group_by(DetalleServicio.nombre)
+        .order_by(func.count(func.distinct(Servicio.id_servicio)).desc(), DetalleServicio.nombre)
+        .all()
+    )
+
+    servicios_por_tecnico_rows = (
+        db.query(
+            ProveedorServicio.id_proveedor.label("id_proveedor"),
+            func.coalesce(Persona.nombre_completo, "Sin tecnico").label("nombre"),
+            func.count(func.distinct(Servicio.id_servicio)).label("cantidad"),
+        )
+        .select_from(Servicio)
+        .join(Asignacion, Asignacion.id_asignacion == Servicio.id_asignacion)
+        .outerjoin(
+            ProveedorServicio,
+            ProveedorServicio.id_proveedor == Asignacion.id_proveedor,
+        )
+        .outerjoin(User, User.id_usuario == ProveedorServicio.id_usuario)
+        .outerjoin(Persona, Persona.id_persona == User.id_persona)
+        .filter(*filtros_servicios_completados)
+        .group_by(ProveedorServicio.id_proveedor, Persona.nombre_completo)
+        .order_by(func.count(func.distinct(Servicio.id_servicio)).desc(), Persona.nombre_completo)
+        .all()
+    )
+
+    servicios_por_tipo = [
+        {"nombre": row.nombre, "cantidad": int(row.cantidad or 0)}
+        for row in servicios_por_tipo_rows
+    ]
+    servicios_por_tecnico = [
+        {
+            "id_proveedor": row.id_proveedor,
+            "nombre": row.nombre,
+            "cantidad": int(row.cantidad or 0),
+        }
+        for row in servicios_por_tecnico_rows
+    ]
+
+    return {
+        "id_taller": id_taller,
+        "fecha_inicio": fecha_inicio.isoformat(),
+        "fecha_fin": fecha_fin.isoformat(),
+        "generado_en": datetime.now(LA_PAZ_TZ),
+        "resumen_general": {
+            "total_servicios_completados": int(total_servicios),
+            "total_servicios_cancelados": int(total_servicios_cancelados),
+            "tiempo_promedio_atencion_minutos": round(float(tiempo_promedio or 0)),
+            "calificacion_promedio_atencion": round(float(calificacion_promedio or 0), 1),
+        },
+        "servicios_por_tipo": servicios_por_tipo,
+        "servicios_por_tecnico": servicios_por_tecnico,
+        "indicadores": {
+            "tecnico_mas_activo": servicios_por_tecnico[0]["nombre"] if servicios_por_tecnico else None,
+            "servicio_mas_solicitado": servicios_por_tipo[0]["nombre"] if servicios_por_tipo else None,
+        },
+    }
+
+
+def obtener_reporte_financiero_taller(
+    db: Session,
+    id_taller: int,
+    id_usuario: int,
+    fecha_inicio: date,
+    fecha_fin: date,
+) -> dict:
+    taller = get_active_taller_by_id(db, id_taller)
+    if not taller or taller.id_usuario != id_usuario:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Taller no encontrado",
+        )
+
+    if fecha_inicio > fecha_fin:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="fecha_inicio debe ser menor o igual que fecha_fin",
+        )
+
+    inicio = datetime.combine(fecha_inicio, datetime.min.time())
+    fin_exclusivo = datetime.combine(fecha_fin + timedelta(days=1), datetime.min.time())
+    filtros_pagos_completados = (
+        Asignacion.id_taller == id_taller,
+        Pago.fecha.is_not(None),
+        Pago.fecha >= inicio,
+        Pago.fecha < fin_exclusivo,
+        func.lower(Pago.estado) == "pagado",
+    )
+
+    resumen = (
+        db.query(
+            func.coalesce(func.sum(Pago.monto), 0).label("ingresos_totales"),
+            func.count(Pago.id_pago).label("total_pagos"),
+        )
+        .select_from(Pago)
+        .join(Servicio, Servicio.id_pago == Pago.id_pago)
+        .join(Asignacion, Asignacion.id_asignacion == Servicio.id_asignacion)
+        .filter(*filtros_pagos_completados)
+        .first()
+    )
+
+    ingresos_totales = float(resumen.ingresos_totales or 0)
+    total_pagos = int(resumen.total_pagos or 0)
+    ingreso_promedio = ingresos_totales / total_pagos if total_pagos else 0
+
+    metodo_mas_usado_row = (
+        db.query(
+            func.coalesce(Pago.metodo, "Sin metodo").label("metodo"),
+            func.count(Pago.id_pago).label("cantidad"),
+        )
+        .select_from(Pago)
+        .join(Servicio, Servicio.id_pago == Pago.id_pago)
+        .join(Asignacion, Asignacion.id_asignacion == Servicio.id_asignacion)
+        .filter(*filtros_pagos_completados)
+        .group_by(Pago.metodo)
+        .order_by(func.count(Pago.id_pago).desc(), Pago.metodo)
+        .first()
+    )
+
+    ingresos_por_tipo_rows = (
+        db.query(
+            DetalleServicio.nombre.label("nombre"),
+            func.coalesce(func.sum(DetalleServicio.sub_total), 0).label("monto"),
+        )
+        .select_from(DetalleServicio)
+        .join(Servicio, Servicio.id_servicio == DetalleServicio.id_servicio)
+        .join(Pago, Pago.id_pago == Servicio.id_pago)
+        .join(Asignacion, Asignacion.id_asignacion == Servicio.id_asignacion)
+        .filter(*filtros_pagos_completados)
+        .group_by(DetalleServicio.nombre)
+        .order_by(func.sum(DetalleServicio.sub_total).desc(), DetalleServicio.nombre)
+        .all()
+    )
+
+    ingresos_por_tecnico_rows = (
+        db.query(
+            ProveedorServicio.id_proveedor.label("id_proveedor"),
+            func.coalesce(Persona.nombre_completo, "Sin tecnico").label("nombre"),
+            func.coalesce(func.sum(Pago.monto), 0).label("monto"),
+        )
+        .select_from(Pago)
+        .join(Servicio, Servicio.id_pago == Pago.id_pago)
+        .join(Asignacion, Asignacion.id_asignacion == Servicio.id_asignacion)
+        .outerjoin(
+            ProveedorServicio,
+            ProveedorServicio.id_proveedor == Asignacion.id_proveedor,
+        )
+        .outerjoin(User, User.id_usuario == ProveedorServicio.id_usuario)
+        .outerjoin(Persona, Persona.id_persona == User.id_persona)
+        .filter(*filtros_pagos_completados)
+        .group_by(ProveedorServicio.id_proveedor, Persona.nombre_completo)
+        .order_by(func.sum(Pago.monto).desc(), Persona.nombre_completo)
+        .all()
+    )
+
+    ingresos_por_tipo = [
+        {"nombre": row.nombre, "monto": float(row.monto or 0)}
+        for row in ingresos_por_tipo_rows
+    ]
+    ingresos_por_tecnico = [
+        {
+            "id_proveedor": row.id_proveedor,
+            "nombre": row.nombre,
+            "monto": float(row.monto or 0),
+        }
+        for row in ingresos_por_tecnico_rows
+    ]
+
+    return {
+        "id_taller": id_taller,
+        "fecha_inicio": fecha_inicio.isoformat(),
+        "fecha_fin": fecha_fin.isoformat(),
+        "generado_en": datetime.now(LA_PAZ_TZ),
+        "resumen_general": {
+            "ingresos_totales_generados": round(ingresos_totales, 2),
+            "total_pagos_completados": total_pagos,
+            "ingreso_promedio_por_servicio": round(ingreso_promedio, 2),
+            "metodo_pago_mas_usado": metodo_mas_usado_row.metodo if metodo_mas_usado_row else None,
+        },
+        "ingresos_por_tipo_servicio": ingresos_por_tipo,
+        "ingresos_por_tecnico": ingresos_por_tecnico,
+        "indicadores": {
+            "servicio_mas_rentable": ingresos_por_tipo[0]["nombre"] if ingresos_por_tipo else None,
+            "tecnico_con_mayor_ingreso": ingresos_por_tecnico[0]["nombre"] if ingresos_por_tecnico else None,
+        },
     }
 
 

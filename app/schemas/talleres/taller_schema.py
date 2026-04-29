@@ -132,6 +132,15 @@ class TallerResponse(BaseModel):
         from_attributes = True
 
 
+class TallerRecomendadoResponse(BaseModel):
+    id_taller: int
+    nombre: str
+    distancia_km: float
+    calificacion: float
+    score: float
+    motivo_recomendacion: str
+
+
 # ==============================
 # SCHEMAS PROVEEDOR SERVICIO
 # ==============================
@@ -188,3 +197,71 @@ class TallerDashboardHoyResponse(BaseModel):
     total_resenas: int
     operaciones: dict
     servicios_por_mes: dict
+
+
+class ReporteItemCantidadResponse(BaseModel):
+    nombre: str
+    cantidad: int
+
+
+class ReporteTecnicoCantidadResponse(BaseModel):
+    id_proveedor: int | None
+    nombre: str
+    cantidad: int
+
+
+class ReporteOperativoResumenResponse(BaseModel):
+    total_servicios_completados: int
+    total_servicios_cancelados: int
+    tiempo_promedio_atencion_minutos: int
+    calificacion_promedio_atencion: float
+
+
+class ReporteOperativoIndicadoresResponse(BaseModel):
+    tecnico_mas_activo: str | None
+    servicio_mas_solicitado: str | None
+
+
+class TallerReporteOperativoResponse(BaseModel):
+    id_taller: int
+    fecha_inicio: str
+    fecha_fin: str
+    generado_en: datetime
+    resumen_general: ReporteOperativoResumenResponse
+    servicios_por_tipo: list[ReporteItemCantidadResponse]
+    servicios_por_tecnico: list[ReporteTecnicoCantidadResponse]
+    indicadores: ReporteOperativoIndicadoresResponse
+
+
+class ReporteItemMontoResponse(BaseModel):
+    nombre: str
+    monto: float
+
+
+class ReporteTecnicoMontoResponse(BaseModel):
+    id_proveedor: int | None
+    nombre: str
+    monto: float
+
+
+class ReporteFinancieroResumenResponse(BaseModel):
+    ingresos_totales_generados: float
+    total_pagos_completados: int
+    ingreso_promedio_por_servicio: float
+    metodo_pago_mas_usado: str | None
+
+
+class ReporteFinancieroIndicadoresResponse(BaseModel):
+    servicio_mas_rentable: str | None
+    tecnico_con_mayor_ingreso: str | None
+
+
+class TallerReporteFinancieroResponse(BaseModel):
+    id_taller: int
+    fecha_inicio: str
+    fecha_fin: str
+    generado_en: datetime
+    resumen_general: ReporteFinancieroResumenResponse
+    ingresos_por_tipo_servicio: list[ReporteItemMontoResponse]
+    ingresos_por_tecnico: list[ReporteTecnicoMontoResponse]
+    indicadores: ReporteFinancieroIndicadoresResponse

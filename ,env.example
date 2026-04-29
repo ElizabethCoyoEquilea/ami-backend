@@ -11,16 +11,16 @@ JWT_EXPIRATION_HOURS=24
 
 # Email verification settings
 VERIFICATION_CODE_EXPIRATION_MINUTES=15
-VERIFICATION_CODE_MAX_ATTEMPTS=5
+VERIFICATION_CODE_MAX_ATTEMPTS=3
 
 # SMTP settings
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
-SMTP_USER=tu-correo@dominio.com
+SMTP_USER=ayrtondazamiranda@gmail.com
 SMTP_PASSWORD=sjzv dvyf djtv vytu
 SMTP_USE_TLS=true
-MAIL_FROM=tu-correo@dominio.com
+MAIL_FROM=ayrtondazamiranda@gmail.com
 
-# Invitation settings
-INVITATION_ACCEPT_URL_BASE=http://localhost:8000/auth/talleres/invitaciones/aceptar
-INVITATION_EXPIRATION_HOURS=48
+# IA
+GEMINI_API_KEY=AIzaSyAk2vlEiGVJ0ngNJH8Zws6mNmB6mWATEQg
+GEMINI_MODEL=gemini-2.5-flash

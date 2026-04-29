@@ -45,3 +45,20 @@ def create_solicitud(
     except SQLAlchemyError:
         db.rollback()
         raise
+
+
+def update_solicitud_ai_analysis(
+    db: Session,
+    solicitud: Solicitud,
+    prioridad: str | None,
+    observaciones: str | None,
+) -> Solicitud:
+    try:
+        solicitud.prioridad = prioridad
+        solicitud.observaciones = observaciones
+        db.commit()
+        db.refresh(solicitud)
+        return solicitud
+    except SQLAlchemyError:
+        db.rollback()
+        raise

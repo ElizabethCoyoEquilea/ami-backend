@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from datetime import time
+from datetime import date, time
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect, status
 from fastapi.encoders import jsonable_encoder
@@ -15,9 +15,13 @@ from app.schemas.talleres.taller_schema import (
     ListarProveedoresResponse,
     TallerCreate,
     TallerDashboardHoyResponse,
+    TallerReporteFinancieroResponse,
+    TallerReporteOperativoResponse,
+    TallerRecomendadoResponse,
     TallerResponse,
     TallerUpdate,
 )
+from app.repositories.solicitudes_repository import get_solicitud_by_id
 from app.schemas.usuarios.usuarios_schema import MessageResponse
 from app.services.talleres_service import (
     eliminar_taller,
@@ -25,11 +29,14 @@ from app.services.talleres_service import (
     listar_talleres,
     modificar_taller,
     obtener_dashboard_taller_hoy,
+    obtener_reporte_financiero_taller,
+    obtener_reporte_operativo_taller,
     obtener_taller,
     registrar_taller,
     listar_proveedores_taller,
     listar_asignaciones_taller,
 )
+from app.services.workshop_recommendation_service import recommend_workshops
 
 
 router = APIRouter(prefix="/talleres", tags=["Talleres"])
@@ -83,6 +90,36 @@ def obtener_mis_talleres(
 
 
 @router.get(
+    "/recomendados",
+    response_model=list[TallerRecomendadoResponse],
+    status_code=status.HTTP_200_OK,
+)
+def obtener_talleres_recomendados(
+    id_solicitud: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    solicitud = get_solicitud_by_id(db, id_solicitud)
+    if not solicitud:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Solicitud no encontrada",
+        )
+
+    if solicitud.latitud is None or solicitud.longitud is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La solicitud no tiene latitud o longitud",
+        )
+
+    return recommend_workshops(
+        db=db,
+        client_lat=solicitud.latitud,
+        client_lng=solicitud.longitud,
+    )
+
+
+@router.get(
     "/{id_taller}/dashboard/hoy",
     response_model=TallerDashboardHoyResponse,
     status_code=status.HTTP_200_OK,
@@ -93,6 +130,48 @@ def obtener_dashboard_hoy_taller(
     current_user: User = Depends(get_current_user),
 ):
     return obtener_dashboard_taller_hoy(db, id_taller, current_user.id_usuario)
+
+
+@router.get(
+    "/{id_taller}/reportes/operativo",
+    response_model=TallerReporteOperativoResponse,
+    status_code=status.HTTP_200_OK,
+)
+def obtener_reporte_operativo(
+    id_taller: int,
+    fecha_inicio: date,
+    fecha_fin: date,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return obtener_reporte_operativo_taller(
+        db=db,
+        id_taller=id_taller,
+        id_usuario=current_user.id_usuario,
+        fecha_inicio=fecha_inicio,
+        fecha_fin=fecha_fin,
+    )
+
+
+@router.get(
+    "/{id_taller}/reportes/financiero",
+    response_model=TallerReporteFinancieroResponse,
+    status_code=status.HTTP_200_OK,
+)
+def obtener_reporte_financiero(
+    id_taller: int,
+    fecha_inicio: date,
+    fecha_fin: date,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return obtener_reporte_financiero_taller(
+        db=db,
+        id_taller=id_taller,
+        id_usuario=current_user.id_usuario,
+        fecha_inicio=fecha_inicio,
+        fecha_fin=fecha_fin,
+    )
 
 
 @router.get("/{id_taller}", response_model=TallerResponse, status_code=status.HTTP_200_OK)

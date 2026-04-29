@@ -216,3 +216,14 @@ def list_detalles_by_servicio(db: Session, id_servicio: int) -> list[DetalleServ
         .order_by(DetalleServicio.id_detalle_servicio)
         .all()
     )
+
+
+def update_servicio_estado(db: Session, servicio: Servicio, estado: str) -> Servicio:
+    try:
+        servicio.estado = estado
+        db.commit()
+        db.refresh(servicio)
+        return servicio
+    except SQLAlchemyError:
+        db.rollback()
+        raise
