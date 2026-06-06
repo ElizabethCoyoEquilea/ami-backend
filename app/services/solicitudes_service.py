@@ -15,7 +15,7 @@ from app.repositories.solicitudes_repository import (
 )
 from app.repositories.vehiculos_repository import get_vehiculo_by_id
 from app.schemas.solicitudes.solicitud_schema import SolicitudCreate
-from app.services.gemini_solicitud_analysis_service import analyze_solicitud_with_gemini
+from app.services.openai_solicitud_analysis_service import analyze_solicitud_with_openai
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -111,7 +111,7 @@ def registrar_solicitud(
 
     recomendacion = None
     try:
-        analisis_ia = analyze_solicitud_with_gemini(
+        analisis_ia = analyze_solicitud_with_openai(
             descripcion=solicitud.descripcion,
             imagenes=solicitud.imagenes,
         )
@@ -124,7 +124,7 @@ def registrar_solicitud(
             )
             recomendacion = analisis_ia.get("recomendacion")
     except Exception:
-        logger.exception("No se pudo analizar la solicitud con Gemini id_solicitud=%s", solicitud.id_solicitud)
+        logger.exception("No se pudo analizar la solicitud con OpenAI id_solicitud=%s", solicitud.id_solicitud)
         recomendacion = None
 
     return _solicitud_response_con_recomendacion(solicitud, recomendacion)

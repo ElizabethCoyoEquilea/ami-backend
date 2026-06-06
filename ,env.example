@@ -22,5 +22,5 @@ SMTP_USE_TLS=true
 MAIL_FROM=ayrtondazamiranda@gmail.com
 
 # IA
-GEMINI_API_KEY=AIzaSyAk2vlEiGVJ0ngNJH8Zws6mNmB6mWATEQg
-GEMINI_MODEL=gemini-2.5-flash
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-5.4-mini
