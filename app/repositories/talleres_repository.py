@@ -1,5 +1,5 @@
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, with_loader_criteria
 
 from app.models.solicitudes.asignacion import Asignacion
 from app.models.solicitudes.detalle_servicio import DetalleServicio
@@ -8,6 +8,7 @@ from app.models.solicitudes.servicio import Servicio
 from app.models.talleres.taller import Taller
 from app.models.usuarios.usuario import User
 from app.models.usuarios.usuario_rol import UsuarioRol
+from app.models.usuarios.proveedor_especialidad import ProveedorEspecialidad
 from app.models.usuarios.proveedor_servicio import ProveedorServicio
 from app.models.usuarios.vehiculo import Vehiculo
 from app.schemas.talleres.taller_schema import TallerCreate, TallerUpdate
@@ -95,7 +96,14 @@ def get_proveedores_by_taller(db: Session, id_taller: int) -> list[ProveedorServ
         )
         .options(
             joinedload(ProveedorServicio.usuario)
-            .joinedload(User.persona)
+            .joinedload(User.persona),
+            joinedload(ProveedorServicio.proveedor_especialidades)
+            .joinedload(ProveedorEspecialidad.especialidad),
+            with_loader_criteria(
+                ProveedorEspecialidad,
+                ProveedorEspecialidad.activo.is_(True),
+                include_aliases=True,
+            ),
         )
         .filter(
             ProveedorServicio.id_taller == id_taller,

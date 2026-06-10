@@ -8,7 +8,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.solicitudes.asignacion import Asignacion
 from app.models.solicitudes.calificacion import Calificacion
@@ -17,7 +17,9 @@ from app.models.solicitudes.pago import Pago
 from app.models.solicitudes.servicio import Servicio
 from app.models.solicitudes.detalle_servicio import DetalleServicio
 from app.models.talleres.taller import Taller
+from app.models.talleres.especialidad import Especialidad
 from app.models.usuarios.persona import Persona
+from app.models.usuarios.proveedor_especialidad import ProveedorEspecialidad
 from app.models.usuarios.proveedor_servicio import ProveedorServicio
 from app.models.usuarios.usuario import User
 from app.repositories.talleres_repository import (
@@ -31,7 +33,11 @@ from app.repositories.talleres_repository import (
     get_proveedores_by_taller,
     list_asignaciones_by_taller,
 )
-from app.schemas.talleres.taller_schema import TallerCreate, TallerUpdate
+from app.schemas.talleres.taller_schema import (
+    ProveedorServicioEspecialidadesUpdate,
+    TallerCreate,
+    TallerUpdate,
+)
 
 
 try:
@@ -677,6 +683,97 @@ def listar_proveedores_taller(db: Session, id_taller: int, id_usuario: int) -> d
         "total_proveedores": len(proveedores),
         "proveedores": proveedores,
     }
+
+
+def actualizar_especialidades_proveedor_servicio(
+    db: Session,
+    id_taller: int,
+    data: ProveedorServicioEspecialidadesUpdate,
+    id_usuario: int,
+) -> ProveedorServicio:
+    taller = get_active_taller_by_id(db, id_taller)
+    if not taller or taller.id_usuario != id_usuario:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Taller no encontrado",
+        )
+
+    proveedor = (
+        db.query(ProveedorServicio)
+        .filter(
+            ProveedorServicio.id_proveedor == data.id_proveedor_servicio,
+            ProveedorServicio.id_taller == id_taller,
+        )
+        .first()
+    )
+    if not proveedor:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Proveedor de servicio no encontrado",
+        )
+
+    ids_solicitados = set(data.ids_especialidades)
+    if ids_solicitados:
+        especialidades_existentes = {
+            id_especialidad
+            for (id_especialidad,) in (
+                db.query(Especialidad.id_especialidad)
+                .filter(Especialidad.id_especialidad.in_(ids_solicitados))
+                .all()
+            )
+        }
+        ids_no_encontrados = sorted(ids_solicitados - especialidades_existentes)
+        if ids_no_encontrados:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Especialidades no encontradas: {ids_no_encontrados}",
+            )
+
+    try:
+        proveedor_especialidades = (
+            db.query(ProveedorEspecialidad)
+            .filter(ProveedorEspecialidad.id_proveedor == proveedor.id_proveedor)
+            .all()
+        )
+        especialidades_por_id = {
+            item.id_especialidad: item for item in proveedor_especialidades
+        }
+
+        for id_especialidad in ids_solicitados:
+            proveedor_especialidad = especialidades_por_id.get(id_especialidad)
+            if proveedor_especialidad:
+                proveedor_especialidad.activo = True
+            else:
+                db.add(
+                    ProveedorEspecialidad(
+                        id_proveedor=proveedor.id_proveedor,
+                        id_especialidad=id_especialidad,
+                        activo=True,
+                    )
+                )
+
+        for id_especialidad, proveedor_especialidad in especialidades_por_id.items():
+            if id_especialidad not in ids_solicitados:
+                proveedor_especialidad.activo = False
+
+        db.commit()
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="No se pudieron actualizar las especialidades del proveedor",
+        )
+
+    return (
+        db.query(ProveedorServicio)
+        .options(
+            joinedload(ProveedorServicio.usuario).joinedload(User.persona),
+            joinedload(ProveedorServicio.proveedor_especialidades)
+            .joinedload(ProveedorEspecialidad.especialidad),
+        )
+        .filter(ProveedorServicio.id_proveedor == proveedor.id_proveedor)
+        .first()
+    )
 
 
 def listar_asignaciones_taller(db: Session, id_taller: int):

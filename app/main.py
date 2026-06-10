@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.core.database import engine, Base
+from app.core.schema_updates import apply_schema_updates
 from app.routers.usuarios.usuarios_router import router as usuarios_router
 from app.routers.usuarios.auth_router import router as auth_router
 from app.routers.usuarios.vehiculos_router import router as vehiculos_router
@@ -53,6 +54,7 @@ app.add_middleware(
 @app.on_event("startup")
 def startup() -> None:
     Base.metadata.create_all(bind=engine)
+    apply_schema_updates()
     run_seeds()
 
 app.include_router(auth_router)

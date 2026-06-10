@@ -8,6 +8,7 @@ from faker import Faker
 from sqlalchemy.orm import Session
 
 from app.core.database import Base, SessionLocal, engine
+from app.core.schema_updates import apply_schema_updates
 from app.core.security import get_password_hash
 from app.models.solicitudes.asignacion import Asignacion
 from app.models.solicitudes.calificacion import Calificacion
@@ -17,9 +18,11 @@ from app.models.solicitudes.pago import Pago
 from app.models.solicitudes.servicio import Servicio
 from app.models.solicitudes.solicitud import Solicitud
 from app.models.talleres.catalogo_servicio import CatalogoServicio
+from app.models.talleres.especialidad import Especialidad
 from app.models.talleres.taller import Taller
 from app.models.usuarios.cliente import Cliente
 from app.models.usuarios.persona import Persona
+from app.models.usuarios.proveedor_especialidad import ProveedorEspecialidad
 from app.models.usuarios.proveedor_servicio import ProveedorServicio
 from app.models.usuarios.rol import Rol
 from app.models.usuarios.usuario import User
@@ -191,19 +194,90 @@ def _vehiculo(
     return vehiculo
 
 
+def _especialidad(
+    db: Session,
+    *,
+    codigo: str,
+    nombre: str,
+    descripcion: str | None = None,
+) -> Especialidad:
+    especialidad = db.query(Especialidad).filter(Especialidad.codigo == codigo).first()
+    if especialidad:
+        return especialidad
+
+    especialidad = Especialidad(
+        codigo=codigo,
+        nombre=nombre,
+        descripcion=descripcion,
+    )
+    db.add(especialidad)
+    db.flush()
+    return especialidad
+
+
 def _catalogo(db: Session, taller: Taller) -> list[CatalogoServicio]:
+    especialidades = {
+        "Mantenimiento": _especialidad(
+            db,
+            codigo="MANTENIMIENTO",
+            nombre="Mantenimiento preventivo",
+            descripcion="Mantenimiento preventivo",
+        ),
+        "Diagnostico": _especialidad(
+            db,
+            codigo="DIAGNOSTICO",
+            nombre="Diagnostico automotriz",
+            descripcion="Diagnostico automotriz",
+        ),
+        "Electrico": _especialidad(
+            db,
+            codigo="ELECTRICIDAD",
+            nombre="Electricidad automotriz",
+            descripcion="Electricidad automotriz",
+        ),
+        "Auxilio vial": _especialidad(
+            db,
+            codigo="REMOLQUE",
+            nombre="Grua y traslado",
+            descripcion="Grua y traslado",
+        ),
+        "Mecanica": _especialidad(
+            db,
+            codigo="MECANICA_GENERAL",
+            nombre="Mecanica general",
+            descripcion="Mecanica general",
+        ),
+        "Neumaticos": _especialidad(
+            db,
+            codigo="NEUMATICOS",
+            nombre="Neumaticos y llantas",
+            descripcion="Neumaticos y llantas",
+        ),
+        "Frenos": _especialidad(
+            db,
+            codigo="FRENOS",
+            nombre="Sistema de frenos",
+            descripcion="Sistema de frenos",
+        ),
+        "Motor": _especialidad(
+            db,
+            codigo="MOTOR",
+            nombre="Motor",
+            descripcion="Motor",
+        ),
+    }
     base_items = [
-        ("Cambio de aceite", "Mantenimiento", "servicio", 90),
-        ("Diagnostico computarizado", "Diagnostico", "servicio", 120),
-        ("Cambio de bateria", "Electrico", "unidad", 260),
-        ("Auxilio por grua", "Auxilio vial", "servicio", 180),
-        ("Cambio de llanta", "Auxilio vial", "servicio", 60),
-        ("Revision de frenos", "Mecanica", "servicio", 140),
-        ("Cambio de bujias", "Mecanica", "juego", 110),
-        ("Revision electrica", "Electrico", "servicio", 130),
+        ("Cambio de aceite", "Mantenimiento", 90),
+        ("Diagnostico computarizado", "Diagnostico", 120),
+        ("Cambio de bateria", "Electrico", 260),
+        ("Auxilio por grua", "Auxilio vial", 180),
+        ("Cambio de llanta", "Neumaticos", 60),
+        ("Revision de frenos", "Frenos", 140),
+        ("Cambio de bujias", "Motor", 110),
+        ("Revision electrica", "Electrico", 130),
     ]
     catalogo = []
-    for idx, (nombre, categoria, unidad, precio) in enumerate(base_items, start=1):
+    for idx, (nombre, especialidad_nombre, precio) in enumerate(base_items, start=1):
         item = (
             db.query(CatalogoServicio)
             .filter(
@@ -215,10 +289,9 @@ def _catalogo(db: Session, taller: Taller) -> list[CatalogoServicio]:
         if not item:
             item = CatalogoServicio(
                 id_taller=taller.id_taller,
+                id_especialidad=especialidades[especialidad_nombre].id_especialidad,
                 nombre=nombre,
                 descripcion=f"{nombre} realizado por {taller.nombre}",
-                categoria=categoria,
-                unidad_medida=unidad,
                 precio_estandar=float(precio + idx * 3),
                 estado="activo" if idx <= 7 else "inactivo",
             )
@@ -253,9 +326,17 @@ def _proveedor(
         id_usuario=user.id_usuario,
         id_taller=taller.id_taller,
         estado=estado,
-        especialidad=random.choice(["Mecanica", "Electricidad", "Auxilio vial", "Diagnostico"]),
     )
     db.add(proveedor)
+    db.flush()
+
+    especialidad = random.choice(db.query(Especialidad).all())
+    proveedor_especialidad = ProveedorEspecialidad(
+        id_proveedor=proveedor.id_proveedor,
+        id_especialidad=especialidad.id_especialidad,
+        activo=True,
+    )
+    db.add(proveedor_especialidad)
     db.flush()
     return proveedor
 
@@ -553,6 +634,7 @@ def _crear_servicios_realizados_ayrton(
 
 def run_demo_seed() -> None:
     Base.metadata.create_all(bind=engine)
+    apply_schema_updates()
     db = SessionLocal()
     try:
         role_admin = _role(db, ROLE_ADMIN)

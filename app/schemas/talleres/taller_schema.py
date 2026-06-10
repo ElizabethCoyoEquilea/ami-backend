@@ -2,6 +2,8 @@ from datetime import datetime, time
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.schemas.usuarios.proveedor_especialidad_schema import ProveedorEspecialidadResponse
+
 
 MAX_RADIO_COBERTURA_KM = 100
 ESTADOS_TALLER = {"abierto", "cerrado"}
@@ -169,11 +171,27 @@ class ProveedorServicioResponse(BaseModel):
     id_usuario: int
     id_taller: int
     estado: str | None
-    especialidad: str | None
+    proveedor_especialidades: list[ProveedorEspecialidadResponse] = Field(default_factory=list)
     usuario: UsuarioBasicResponse
 
     class Config:
         from_attributes = True
+
+
+class ProveedorServicioEspecialidadesUpdate(BaseModel):
+    id_proveedor_servicio: int = Field(gt=0)
+    ids_especialidades: list[int] = Field(default_factory=list)
+
+    @field_validator("ids_especialidades")
+    @classmethod
+    def validar_ids_especialidades(cls, value: list[int]) -> list[int]:
+        ids_unicos: list[int] = []
+        for id_especialidad in value:
+            if id_especialidad <= 0:
+                raise ValueError("Todos los ids de especialidades deben ser mayores a 0")
+            if id_especialidad not in ids_unicos:
+                ids_unicos.append(id_especialidad)
+        return ids_unicos
 
 
 class ListarProveedoresResponse(BaseModel):

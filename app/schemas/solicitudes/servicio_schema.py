@@ -7,9 +7,8 @@ from app.schemas.solicitudes.pago_schema import PagoResponse
 
 class CatalogoServicioResumenResponse(BaseModel):
     id_catalogo_servicio: int
+    id_especialidad: int
     nombre: str
-    categoria: str
-    unidad_medida: str
 
     class Config:
         from_attributes = True

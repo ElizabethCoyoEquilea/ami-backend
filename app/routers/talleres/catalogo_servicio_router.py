@@ -9,11 +9,13 @@ from app.schemas.talleres.catalogo_servicio_schema import (
     CatalogoServicioResponse,
     CatalogoServicioUpdate,
 )
+from app.schemas.talleres.especialidad_schema import EspecialidadResponse
 from app.schemas.usuarios.usuarios_schema import MessageResponse
 from app.services.catalogo_servicio_service import (
     eliminar_catalogo_servicio,
     listar_catalogo_servicios,
     listar_catalogo_servicios_por_taller,
+    listar_especialidades,
     modificar_catalogo_servicio,
     obtener_catalogo_servicio,
     registrar_catalogo_servicio,
@@ -38,6 +40,17 @@ def obtener_catalogo_servicios(
     current_user: User = Depends(get_current_user),
 ):
     return listar_catalogo_servicios(db, current_user.id_usuario)
+
+
+@router.get(
+    "/especialidades",
+    response_model=list[EspecialidadResponse],
+    status_code=status.HTTP_200_OK,
+)
+def obtener_especialidades(
+    db: Session = Depends(get_db),
+):
+    return listar_especialidades(db)
 
 
 @router.get(
@@ -66,19 +79,19 @@ def obtener_catalogo_servicio_por_id(
 
 
 @router.put(
-    "/{id_catalogo_servicio}",
+    "/{id}",
     response_model=CatalogoServicioResponse,
     status_code=status.HTTP_200_OK,
 )
 def actualizar_catalogo_servicio(
-    id_catalogo_servicio: int,
+    id: int,
     catalogo_data: CatalogoServicioUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     return modificar_catalogo_servicio(
         db,
-        id_catalogo_servicio,
+        id,
         catalogo_data,
         current_user.id_usuario,
     )
