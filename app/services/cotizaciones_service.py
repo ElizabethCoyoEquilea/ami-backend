@@ -118,20 +118,27 @@ def refresh_invitaciones_y_generar_siguiente_ronda(
     db: Session,
     solicitud,
     top_n: int = 3,
-) -> list[Invitacion]:
-    if solicitud.latitud is None or solicitud.longitud is None:
-        return []
-
+    incluir_expiradas: bool = False,
+) -> list[Invitacion] | tuple[list[Invitacion], list[Invitacion]]:
     expiradas = expire_pending_invitaciones(db, solicitud.id_solicitud)
+
+    def _response(nuevas_invitaciones: list[Invitacion]):
+        if incluir_expiradas:
+            return expiradas, nuevas_invitaciones
+        return nuevas_invitaciones
+
     if not expiradas:
-        return []
+        return _response([])
+
+    if solicitud.latitud is None or solicitud.longitud is None:
+        return _response([])
 
     if get_invitacion_finalizada_by_solicitud(db, solicitud.id_solicitud):
-        return []
+        return _response([])
 
     pendientes = get_pending_invitaciones_by_solicitud(db, solicitud.id_solicitud)
     if pendientes:
-        return []
+        return _response([])
 
     invitado_ids = set(
         get_all_invitacion_taller_ids_by_solicitud(db, solicitud.id_solicitud)
@@ -148,7 +155,7 @@ def refresh_invitaciones_y_generar_siguiente_ronda(
         solicitud.estado = "sin_cobertura"
         db.commit()
         db.refresh(solicitud)
-        return []
+        return _response([])
 
     solicitud.ronda_actual = (solicitud.ronda_actual or 1) + 1
     solicitud.estado = "buscando_taller"
@@ -167,7 +174,7 @@ def refresh_invitaciones_y_generar_siguiente_ronda(
         except SQLAlchemyError:
             continue
 
-    return nuevas_invitaciones
+    return _response(nuevas_invitaciones)
 
 
 def listar_solicitud_ids_con_invitaciones_vencidas(db: Session) -> list[int]:

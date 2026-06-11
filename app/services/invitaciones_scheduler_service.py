@@ -7,7 +7,10 @@ from app.services.cotizaciones_service import (
     listar_solicitud_ids_con_invitaciones_vencidas,
     refresh_invitaciones_y_generar_siguiente_ronda,
 )
-from app.services.notificaciones_service import notificar_nueva_solicitud_a_talleres
+from app.services.notificaciones_service import (
+    notificar_invitacion_expirada_a_talleres,
+    notificar_nueva_solicitud_a_talleres,
+)
 
 
 logger = logging.getLogger("invitaciones_scheduler")
@@ -17,6 +20,7 @@ async def procesar_invitaciones_vencidas() -> dict[str, int]:
     db = SessionLocal()
     try:
         solicitud_ids = listar_solicitud_ids_con_invitaciones_vencidas(db)
+        total_invitaciones_expiradas = 0
         total_nuevas_invitaciones = 0
 
         for id_solicitud in solicitud_ids:
@@ -24,22 +28,27 @@ async def procesar_invitaciones_vencidas() -> dict[str, int]:
             if not solicitud:
                 continue
 
-            nuevas_invitaciones = refresh_invitaciones_y_generar_siguiente_ronda(
+            invitaciones_expiradas, nuevas_invitaciones = refresh_invitaciones_y_generar_siguiente_ronda(
                 db,
                 solicitud,
+                incluir_expiradas=True,
             )
+            total_invitaciones_expiradas += len(invitaciones_expiradas)
             total_nuevas_invitaciones += len(nuevas_invitaciones)
+            await notificar_invitacion_expirada_a_talleres(db, invitaciones_expiradas)
             await notificar_nueva_solicitud_a_talleres(db, nuevas_invitaciones)
 
         if solicitud_ids:
             logger.info(
-                "invitaciones_vencidas_procesadas solicitudes=%s nuevas_invitaciones=%s",
+                "invitaciones_vencidas_procesadas solicitudes=%s invitaciones_expiradas=%s nuevas_invitaciones=%s",
                 len(solicitud_ids),
+                total_invitaciones_expiradas,
                 total_nuevas_invitaciones,
             )
 
         return {
             "solicitudes_procesadas": len(solicitud_ids),
+            "invitaciones_expiradas": total_invitaciones_expiradas,
             "nuevas_invitaciones": total_nuevas_invitaciones,
         }
     finally:

@@ -11,6 +11,15 @@ logger = logging.getLogger("notificaciones")
 
 async def notificar_nueva_solicitud_a_talleres(db: Session, invitaciones) -> None:
     payload = {"tipo": "nueva solicitud"}
+    await _notificar_talleres_por_invitaciones(db, invitaciones, payload)
+
+
+async def notificar_invitacion_expirada_a_talleres(db: Session, invitaciones) -> None:
+    payload = {"tipo": "invitacion_expirada"}
+    await _notificar_talleres_por_invitaciones(db, invitaciones, payload)
+
+
+async def _notificar_talleres_por_invitaciones(db: Session, invitaciones, payload: dict) -> None:
     taller_ids = sorted({invitacion.id_taller for invitacion in invitaciones})
 
     for id_taller in taller_ids:
@@ -27,7 +36,8 @@ async def notificar_nueva_solicitud_a_talleres(db: Session, invitaciones) -> Non
         for id_usuario in usuarios_notificados:
             enviado = await providers_ws_manager.send_to_user(id_usuario, payload)
             logger.info(
-                "nueva_solicitud_ws user=%s id_taller=%s enviado=%s",
+                "notificacion_taller_ws tipo=%s user=%s id_taller=%s enviado=%s",
+                payload.get("tipo"),
                 id_usuario,
                 id_taller,
                 enviado,
