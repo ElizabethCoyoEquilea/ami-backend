@@ -673,7 +673,7 @@ def run_demo_seed() -> None:
             admin_users.append(
                 _user(
                     db,
-                    email=f"demo.admin{i}@ami.test",
+                    email=f"demo.admin{i}@ami-demo.com",
                     nombre=fake.name(),
                     genero=random.choice(["M", "F"]),
                 )
@@ -707,7 +707,7 @@ def run_demo_seed() -> None:
                 n = len(proveedores) + 1
                 provider_user = _user(
                     db,
-                    email=f"demo.proveedor.t{idx}.{n}@ami.test",
+                    email=f"demo.proveedor.t{idx}.{n}@ami-demo.com",
                     nombre=fake.name(),
                     genero=random.choice(["M", "F"]),
                 )
@@ -738,7 +738,7 @@ def run_demo_seed() -> None:
         for i in range(1, 31):
             user = _user(
                 db,
-                email=f"demo.cliente{i}@ami.test",
+                email=f"demo.cliente{i}@ami-demo.com",
                 nombre=fake.name(),
                 genero=random.choice(["M", "F"]),
             )
