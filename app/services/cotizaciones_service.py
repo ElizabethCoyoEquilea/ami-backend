@@ -6,13 +6,20 @@ from app.models.solicitudes.cotizacion import Invitacion
 from app.models.usuarios.usuario import User
 from app.repositories.cotizaciones_repository import (
     aceptar_invitacion_cliente,
+    create_invitacion_enviada,
     create_invitacion_pendiente,
+    expire_pending_invitaciones,
+    get_all_invitacion_taller_ids_by_solicitud,
+    get_invitacion_finalizada_by_solicitud,
     get_invitacion_detalle_by_id,
+    get_pending_invitaciones_by_solicitud,
+    list_solicitud_ids_with_expired_pending_invitaciones,
     list_invitaciones_pendientes_by_taller,
     rechazar_invitacion_cliente,
 )
 from app.repositories.solicitudes_repository import get_solicitud_by_id
 from app.repositories.talleres_repository import get_active_taller_by_id
+from app.services.workshop_recommendation_service import recommend_workshops
 from app.websockets.connection_manager import clients_ws_manager
 
 
@@ -70,6 +77,101 @@ def registrar_invitacion_pendiente(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="No se pudo crear la invitacion",
         )
+
+
+def crear_invitaciones_automaticas_para_solicitud(
+    db: Session,
+    solicitud,
+    top_n: int = 3,
+) -> list[Invitacion]:
+    if solicitud.latitud is None or solicitud.longitud is None:
+        return []
+
+    invited_taller_ids = set(
+        get_all_invitacion_taller_ids_by_solicitud(db, solicitud.id_solicitud)
+    )
+    recomendaciones = recommend_workshops(
+        db=db,
+        client_lat=solicitud.latitud,
+        client_lng=solicitud.longitud,
+        descripcion=solicitud.descripcion,
+        exclude_taller_ids=invited_taller_ids,
+        top_n=top_n,
+    )
+
+    invitaciones: list[Invitacion] = []
+    for taller_info in recomendaciones:
+        try:
+            invitacion = create_invitacion_enviada(
+                db,
+                solicitud,
+                taller_info["id_taller"],
+            )
+            invitaciones.append(invitacion)
+        except SQLAlchemyError:
+            continue
+
+    return invitaciones
+
+
+def refresh_invitaciones_y_generar_siguiente_ronda(
+    db: Session,
+    solicitud,
+    top_n: int = 3,
+) -> list[Invitacion]:
+    if solicitud.latitud is None or solicitud.longitud is None:
+        return []
+
+    expiradas = expire_pending_invitaciones(db, solicitud.id_solicitud)
+    if not expiradas:
+        return []
+
+    if get_invitacion_finalizada_by_solicitud(db, solicitud.id_solicitud):
+        return []
+
+    pendientes = get_pending_invitaciones_by_solicitud(db, solicitud.id_solicitud)
+    if pendientes:
+        return []
+
+    invitado_ids = set(
+        get_all_invitacion_taller_ids_by_solicitud(db, solicitud.id_solicitud)
+    )
+    nuevas_recomendaciones = recommend_workshops(
+        db=db,
+        client_lat=solicitud.latitud,
+        client_lng=solicitud.longitud,
+        descripcion=solicitud.descripcion,
+        exclude_taller_ids=invitado_ids,
+        top_n=top_n,
+    )
+    if not nuevas_recomendaciones:
+        solicitud.estado = "sin_cobertura"
+        db.commit()
+        db.refresh(solicitud)
+        return []
+
+    solicitud.ronda_actual = (solicitud.ronda_actual or 1) + 1
+    solicitud.estado = "buscando_taller"
+    db.commit()
+    db.refresh(solicitud)
+
+    nuevas_invitaciones: list[Invitacion] = []
+    for taller_info in nuevas_recomendaciones:
+        try:
+            invitacion = create_invitacion_enviada(
+                db,
+                solicitud,
+                taller_info["id_taller"],
+            )
+            nuevas_invitaciones.append(invitacion)
+        except SQLAlchemyError:
+            continue
+
+    return nuevas_invitaciones
+
+
+def listar_solicitud_ids_con_invitaciones_vencidas(db: Session) -> list[int]:
+    return list_solicitud_ids_with_expired_pending_invitaciones(db)
 
 
 def listar_invitaciones_pendientes_taller(

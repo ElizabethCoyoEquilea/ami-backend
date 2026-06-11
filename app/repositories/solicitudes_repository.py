@@ -1,5 +1,5 @@
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.solicitudes.cotizacion import Invitacion
 from app.models.solicitudes.solicitud import Solicitud
@@ -56,10 +56,24 @@ def list_solicitudes_by_taller(
     )
 
 
+def list_invitaciones_con_solicitud_by_taller(
+    db: Session,
+    id_taller: int,
+) -> list[Invitacion]:
+    return (
+        db.query(Invitacion)
+        .join(Solicitud, Solicitud.id_solicitud == Invitacion.id_solicitud)
+        .options(joinedload(Invitacion.solicitud))
+        .filter(Invitacion.id_taller == id_taller)
+        .order_by(Solicitud.fecha.desc(), Solicitud.id_solicitud.desc())
+        .all()
+    )
+
+
 def create_solicitud(
     db: Session,
     solicitud_data: SolicitudCreate,
-    estado: str = "pendiente",
+    estado: str = "buscando_taller",
 ) -> Solicitud:
     try:
         solicitud = Solicitud(

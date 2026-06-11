@@ -1,0 +1,61 @@
+import asyncio
+import logging
+
+from app.core.database import SessionLocal
+from app.repositories.solicitudes_repository import get_solicitud_by_id
+from app.services.cotizaciones_service import (
+    listar_solicitud_ids_con_invitaciones_vencidas,
+    refresh_invitaciones_y_generar_siguiente_ronda,
+)
+from app.services.notificaciones_service import notificar_nueva_solicitud_a_talleres
+
+
+logger = logging.getLogger("invitaciones_scheduler")
+
+
+async def procesar_invitaciones_vencidas() -> dict[str, int]:
+    db = SessionLocal()
+    try:
+        solicitud_ids = listar_solicitud_ids_con_invitaciones_vencidas(db)
+        total_nuevas_invitaciones = 0
+
+        for id_solicitud in solicitud_ids:
+            solicitud = get_solicitud_by_id(db, id_solicitud)
+            if not solicitud:
+                continue
+
+            nuevas_invitaciones = refresh_invitaciones_y_generar_siguiente_ronda(
+                db,
+                solicitud,
+            )
+            total_nuevas_invitaciones += len(nuevas_invitaciones)
+            await notificar_nueva_solicitud_a_talleres(db, nuevas_invitaciones)
+
+        if solicitud_ids:
+            logger.info(
+                "invitaciones_vencidas_procesadas solicitudes=%s nuevas_invitaciones=%s",
+                len(solicitud_ids),
+                total_nuevas_invitaciones,
+            )
+
+        return {
+            "solicitudes_procesadas": len(solicitud_ids),
+            "nuevas_invitaciones": total_nuevas_invitaciones,
+        }
+    finally:
+        db.close()
+
+
+async def ejecutar_scheduler_invitaciones(intervalo_segundos: int = 30) -> None:
+    logger.info("scheduler_invitaciones_iniciado intervalo_segundos=%s", intervalo_segundos)
+
+    while True:
+        try:
+            await procesar_invitaciones_vencidas()
+        except asyncio.CancelledError:
+            logger.info("scheduler_invitaciones_cancelado")
+            raise
+        except Exception:
+            logger.exception("scheduler_invitaciones_error")
+
+        await asyncio.sleep(intervalo_segundos)

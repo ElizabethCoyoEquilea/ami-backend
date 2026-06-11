@@ -203,6 +203,36 @@ class ListarProveedoresResponse(BaseModel):
     proveedores: list[ProveedorServicioResponse]
 
 
+class InvitacionSolicitudTallerResponse(BaseModel):
+    id_invitacion: int
+    id_solicitud: int
+    id_taller: int
+    numero_ronda: int
+    estado: str
+    fecha_hora_envio: datetime
+    fecha_hora_expiracion: datetime | None
+    fecha_hora_respuesta: datetime | None
+
+
+class SolicitudTallerResponse(BaseModel):
+    id_solicitud: int
+    id_vehiculo: int
+    descripcion: str
+    latitud: float | None
+    direccion: str | None
+    longitud: float | None
+    fecha: datetime
+    prioridad: str | None
+    observaciones: str | None
+    audio: str | None
+    imagenes: list[str] | None
+    ronda_actual: int
+    estado: str
+    recomendacion: str | None = None
+    distancia_desde_taller: float | None = None
+    invitacion: InvitacionSolicitudTallerResponse
+
+
 class TallerDashboardHoyResponse(BaseModel):
     id_taller: int
     fecha: str

@@ -11,8 +11,8 @@ from app.core.database import SessionLocal, get_db
 from app.core.security import get_current_user, verify_token
 from app.models.usuarios.usuario import User
 from app.schemas.solicitudes.asignacion_schema import AsignacionConSolicitudResponse
-from app.schemas.solicitudes.solicitud_schema import SolicitudResponse
 from app.schemas.talleres.taller_schema import (
+    SolicitudTallerResponse,
     ListarProveedoresResponse,
     ProveedorServicioEspecialidadesUpdate,
     ProveedorServicioResponse,
@@ -286,7 +286,7 @@ def obtener_asignaciones_taller(
 
 @router.get(
     "/{id_taller}/solicitudes",
-    response_model=list[SolicitudResponse],
+    response_model=list[SolicitudTallerResponse],
     status_code=status.HTTP_200_OK,
 )
 def obtener_solicitudes_taller(

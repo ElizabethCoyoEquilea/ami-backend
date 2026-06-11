@@ -34,7 +34,7 @@ from app.repositories.talleres_repository import (
     get_proveedores_by_taller,
     list_asignaciones_by_taller,
 )
-from app.repositories.solicitudes_repository import list_solicitudes_by_taller
+from app.repositories.solicitudes_repository import list_invitaciones_con_solicitud_by_taller
 from app.schemas.talleres.taller_schema import (
     ProveedorServicioEspecialidadesUpdate,
     TallerCreate,
@@ -74,7 +74,7 @@ def _haversine_distance_km(
     return EARTH_RADIUS_KM * c
 
 
-def _solicitud_taller_response(solicitud, taller: Taller) -> dict:
+def _solicitud_taller_response(solicitud, taller: Taller, invitacion: Invitacion) -> dict:
     distancia_desde_taller = None
     if (
         taller.latitud is not None
@@ -108,6 +108,16 @@ def _solicitud_taller_response(solicitud, taller: Taller) -> dict:
         "estado": solicitud.estado,
         "recomendacion": solicitud.recomendacion,
         "distancia_desde_taller": distancia_desde_taller,
+        "invitacion": {
+            "id_invitacion": invitacion.id_invitacion,
+            "id_solicitud": invitacion.id_solicitud,
+            "id_taller": invitacion.id_taller,
+            "numero_ronda": invitacion.numero_ronda,
+            "estado": invitacion.estado,
+            "fecha_hora_envio": invitacion.fecha_hora_envio,
+            "fecha_hora_expiracion": invitacion.fecha_hora_expiracion,
+            "fecha_hora_respuesta": invitacion.fecha_hora_respuesta,
+        },
     }
 
 
@@ -887,5 +897,8 @@ def listar_solicitudes_taller(db: Session, id_taller: int):
             detail="Taller no encontrado",
         )
 
-    solicitudes = list_solicitudes_by_taller(db, id_taller)
-    return [_solicitud_taller_response(solicitud, taller) for solicitud in solicitudes]
+    invitaciones = list_invitaciones_con_solicitud_by_taller(db, id_taller)
+    return [
+        _solicitud_taller_response(invitacion.solicitud, taller, invitacion)
+        for invitacion in invitaciones
+    ]

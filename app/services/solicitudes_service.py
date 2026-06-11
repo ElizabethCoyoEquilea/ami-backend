@@ -16,6 +16,8 @@ from app.repositories.solicitudes_repository import (
 )
 from app.repositories.vehiculos_repository import get_vehiculo_by_id
 from app.schemas.solicitudes.solicitud_schema import SolicitudCreate
+from app.services.cotizaciones_service import crear_invitaciones_automaticas_para_solicitud
+from app.services.notificaciones_service import notificar_nueva_solicitud_a_talleres
 from app.services.openai_solicitud_analysis_service import analyze_solicitud_with_openai
 
 
@@ -70,7 +72,7 @@ def _guardar_archivo(upload: UploadFile, carpeta: str, tipo: str) -> str:
     return f"/uploads/solicitudes/{carpeta}/{nombre_archivo}"
 
 
-def registrar_solicitud(
+async def registrar_solicitud(
     db: Session,
     id_vehiculo: int,
     descripcion: str,
@@ -127,6 +129,23 @@ def registrar_solicitud(
             )
     except Exception:
         logger.exception("No se pudo analizar la solicitud con OpenAI id_solicitud=%s", solicitud.id_solicitud)
+
+    invitaciones = []
+    try:
+        invitaciones = crear_invitaciones_automaticas_para_solicitud(db, solicitud)
+    except Exception:
+        logger.exception(
+            "No se pudo generar invitaciones automaticas para solicitud id_solicitud=%s",
+            solicitud.id_solicitud,
+        )
+
+    try:
+        await notificar_nueva_solicitud_a_talleres(db, invitaciones)
+    except Exception:
+        logger.exception(
+            "No se pudo notificar nueva solicitud por websocket id_solicitud=%s",
+            solicitud.id_solicitud,
+        )
 
     return _solicitud_response(solicitud)
 

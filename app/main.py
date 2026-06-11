@@ -1,3 +1,5 @@
+import asyncio
+from contextlib import suppress
 import logging
 from pathlib import Path
 
@@ -19,9 +21,11 @@ from app.routers.talleres.talleres_router import router as talleres_router
 from app.routers.talleres.catalogo_servicio_router import router as catalogo_servicio_router
 from app.routers.websockets_router import router as websockets_router
 from app.seeds import run_seeds
+from app.services.invitaciones_scheduler_service import ejecutar_scheduler_invitaciones
 import app.models
 
 app = FastAPI()
+invitaciones_scheduler_task: asyncio.Task | None = None
 
 UPLOADS_DIR = Path(__file__).resolve().parent.parent / "uploads"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
@@ -52,10 +56,22 @@ app.add_middleware(
 )
 
 @app.on_event("startup")
-def startup() -> None:
+async def startup() -> None:
+    global invitaciones_scheduler_task
     Base.metadata.create_all(bind=engine)
     apply_schema_updates()
     run_seeds()
+    invitaciones_scheduler_task = asyncio.create_task(
+        ejecutar_scheduler_invitaciones(intervalo_segundos=30)
+    )
+
+
+@app.on_event("shutdown")
+async def shutdown() -> None:
+    if invitaciones_scheduler_task:
+        invitaciones_scheduler_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await invitaciones_scheduler_task
 
 app.include_router(auth_router)
 app.include_router(usuarios_router)

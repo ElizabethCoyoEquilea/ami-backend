@@ -16,7 +16,7 @@ router = APIRouter(prefix="/solicitudes", tags=["Solicitudes"])
 
 
 @router.post("", response_model=SolicitudResponse, status_code=status.HTTP_201_CREATED)
-def crear_solicitud(
+async def crear_solicitud(
     id_vehiculo: int = Form(..., gt=0),
     descripcion: str = Form(..., min_length=1, max_length=500),
     latitud: float = Form(...),
@@ -27,7 +27,7 @@ def crear_solicitud(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return registrar_solicitud(
+    return await registrar_solicitud(
         db=db,
         id_vehiculo=id_vehiculo,
         descripcion=descripcion,
