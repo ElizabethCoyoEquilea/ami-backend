@@ -129,9 +129,11 @@ def _ensure_user_role(
 
 
 def _taller(db: Session, *, owner: User, nombre: str, index: int) -> Taller:
+    tiempo_respuesta = 5 if nombre == "Taller Demo Ayrton" else min(60, 10 + (index * 10))
     taller = db.query(Taller).filter(Taller.nombre == nombre).first()
     if taller:
         taller.activo = True
+        taller.tiempo_respuesta = tiempo_respuesta
         return taller
 
     taller = Taller(
@@ -144,6 +146,7 @@ def _taller(db: Session, *, owner: User, nombre: str, index: int) -> Taller:
         longitud=-63.18 + random.uniform(-0.08, 0.08),
         latitud=-17.78 + random.uniform(-0.08, 0.08),
         qr=None,
+        tiempo_respuesta=tiempo_respuesta,
         horario_inicio=time(8, 0),
         horario_fin=time(18, 30),
         estado=random.choice(["abierto", "cerrado"]),
