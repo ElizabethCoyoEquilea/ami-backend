@@ -1,26 +1,27 @@
+from datetime import datetime
+
 from pydantic import BaseModel
 
 from app.schemas.solicitudes.solicitud_schema import SolicitudResponse
 
 
-class CotizacionResponse(BaseModel):
-    id_cotizacion: int
+class InvitacionResponse(BaseModel):
+    id_invitacion: int
     id_solicitud: int
     id_taller: int
-    monto: float
+    numero_ronda: int
     estado: str
+    fecha_hora_envio: datetime
+    fecha_hora_expiracion: datetime | None
+    fecha_hora_respuesta: datetime | None
 
     class Config:
         from_attributes = True
 
 
-class CotizacionConSolicitudResponse(CotizacionResponse):
+class InvitacionConSolicitudResponse(InvitacionResponse):
     solicitud: SolicitudResponse
 
 
-class CotizacionMontoEnviadoResponse(CotizacionResponse):
-    websocket_enviado: bool
-
-
-class CotizacionRechazoAdministradorResponse(CotizacionResponse):
+class InvitacionRechazoAdministradorResponse(InvitacionResponse):
     websocket_enviado: bool

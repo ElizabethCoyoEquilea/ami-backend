@@ -11,6 +11,7 @@ from app.models.usuarios.usuario import User
 from app.repositories.solicitudes_repository import (
     create_solicitud,
     get_solicitud_by_id_for_user,
+    list_solicitudes_by_user,
     update_solicitud_ai_analysis,
 )
 from app.repositories.vehiculos_repository import get_vehiculo_by_id
@@ -23,7 +24,7 @@ UPLOADS_ROOT = PROJECT_ROOT / "uploads" / "solicitudes"
 logger = logging.getLogger("solicitudes")
 
 
-def _solicitud_response_con_recomendacion(solicitud, recomendacion: str | None = None) -> dict:
+def _solicitud_response(solicitud) -> dict:
     return {
         "id_solicitud": solicitud.id_solicitud,
         "id_vehiculo": solicitud.id_vehiculo,
@@ -36,8 +37,9 @@ def _solicitud_response_con_recomendacion(solicitud, recomendacion: str | None =
         "observaciones": solicitud.observaciones,
         "audio": solicitud.audio,
         "imagenes": solicitud.imagenes,
+        "ronda_actual": solicitud.ronda_actual,
         "estado": solicitud.estado,
-        "recomendacion": recomendacion,
+        "recomendacion": solicitud.recomendacion,
     }
 
 
@@ -109,10 +111,10 @@ def registrar_solicitud(
             detail="No se pudo crear la solicitud",
         )
 
-    recomendacion = None
     try:
         analisis_ia = analyze_solicitud_with_openai(
             descripcion=solicitud.descripcion,
+            audio=solicitud.audio,
             imagenes=solicitud.imagenes,
         )
         if analisis_ia:
@@ -121,13 +123,12 @@ def registrar_solicitud(
                 solicitud=solicitud,
                 prioridad=analisis_ia.get("prioridad"),
                 observaciones=analisis_ia.get("observaciones"),
+                recomendacion=analisis_ia.get("recomendacion"),
             )
-            recomendacion = analisis_ia.get("recomendacion")
     except Exception:
         logger.exception("No se pudo analizar la solicitud con OpenAI id_solicitud=%s", solicitud.id_solicitud)
-        recomendacion = None
 
-    return _solicitud_response_con_recomendacion(solicitud, recomendacion)
+    return _solicitud_response(solicitud)
 
 
 def obtener_solicitud_por_id(
@@ -142,4 +143,12 @@ def obtener_solicitud_por_id(
             detail="Solicitud no encontrada",
         )
 
-    return _solicitud_response_con_recomendacion(solicitud)
+    return _solicitud_response(solicitud)
+
+
+def listar_mis_solicitudes(
+    db: Session,
+    current_user: User,
+) -> list[dict]:
+    solicitudes = list_solicitudes_by_user(db, current_user.id_usuario)
+    return [_solicitud_response(solicitud) for solicitud in solicitudes]

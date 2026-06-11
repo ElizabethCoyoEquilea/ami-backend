@@ -11,6 +11,7 @@ class SolicitudCreate(BaseModel):
     longitud: float
     audio: str | None = Field(default=None, max_length=1000)
     imagenes: list[str] | None = None
+    ronda_actual: int = Field(default=1, ge=1)
 
     @field_validator("descripcion")
     @classmethod
@@ -41,8 +42,10 @@ class SolicitudResponse(BaseModel):
     observaciones: str | None
     audio: str | None
     imagenes: list[str] | None
+    ronda_actual: int
     estado: str
     recomendacion: str | None = None
+    distancia_desde_taller: float | None = None
 
     class Config:
         from_attributes = True

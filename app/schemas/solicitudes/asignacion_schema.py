@@ -8,7 +8,7 @@ from app.schemas.solicitudes.servicio_schema import ServicioResponse
 
 class AsignacionConSolicitudResponse(BaseModel):
     id_asignacion: int
-    id_cotizacion: int | None = None
+    id_invitacion: int | None = None
     id_solicitud: int
     id_taller: int
     id_proveedor: int | None

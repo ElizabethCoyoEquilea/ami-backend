@@ -1,6 +1,7 @@
 import shutil
 from calendar import monthrange
 from datetime import date, datetime, timedelta, timezone
+from math import asin, cos, radians, sin, sqrt
 from pathlib import Path
 from uuid import uuid4
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -12,7 +13,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.models.solicitudes.asignacion import Asignacion
 from app.models.solicitudes.calificacion import Calificacion
-from app.models.solicitudes.cotizacion import Cotizacion
+from app.models.solicitudes.cotizacion import Invitacion
 from app.models.solicitudes.pago import Pago
 from app.models.solicitudes.servicio import Servicio
 from app.models.solicitudes.detalle_servicio import DetalleServicio
@@ -33,6 +34,7 @@ from app.repositories.talleres_repository import (
     get_proveedores_by_taller,
     list_asignaciones_by_taller,
 )
+from app.repositories.solicitudes_repository import list_solicitudes_by_taller
 from app.schemas.talleres.taller_schema import (
     ProveedorServicioEspecialidadesUpdate,
     TallerCreate,
@@ -48,6 +50,65 @@ except ZoneInfoNotFoundError:
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 UPLOADS_ROOT = PROJECT_ROOT / "uploads" / "talleres" / "qr"
+EARTH_RADIUS_KM = 6371
+
+
+def _haversine_distance_km(
+    origin_lat: float,
+    origin_lng: float,
+    destination_lat: float,
+    destination_lng: float,
+) -> float:
+    lat_delta = radians(destination_lat - origin_lat)
+    lng_delta = radians(destination_lng - origin_lng)
+    origin_lat_rad = radians(origin_lat)
+    destination_lat_rad = radians(destination_lat)
+
+    a = (
+        sin(lat_delta / 2) ** 2
+        + cos(origin_lat_rad)
+        * cos(destination_lat_rad)
+        * sin(lng_delta / 2) ** 2
+    )
+    c = 2 * asin(sqrt(a))
+    return EARTH_RADIUS_KM * c
+
+
+def _solicitud_taller_response(solicitud, taller: Taller) -> dict:
+    distancia_desde_taller = None
+    if (
+        taller.latitud is not None
+        and taller.longitud is not None
+        and solicitud.latitud is not None
+        and solicitud.longitud is not None
+    ):
+        distancia_desde_taller = round(
+            _haversine_distance_km(
+                taller.latitud,
+                taller.longitud,
+                solicitud.latitud,
+                solicitud.longitud,
+            ),
+            2,
+        )
+
+    return {
+        "id_solicitud": solicitud.id_solicitud,
+        "id_vehiculo": solicitud.id_vehiculo,
+        "descripcion": solicitud.descripcion,
+        "latitud": solicitud.latitud,
+        "direccion": solicitud.direccion,
+        "longitud": solicitud.longitud,
+        "fecha": solicitud.fecha,
+        "prioridad": solicitud.prioridad,
+        "observaciones": solicitud.observaciones,
+        "audio": solicitud.audio,
+        "imagenes": solicitud.imagenes,
+        "ronda_actual": solicitud.ronda_actual,
+        "estado": solicitud.estado,
+        "recomendacion": solicitud.recomendacion,
+        "distancia_desde_taller": distancia_desde_taller,
+    }
 
 
 def _guardar_qr(upload: UploadFile) -> str:
@@ -279,10 +340,10 @@ def obtener_dashboard_taller_hoy(db: Session, id_taller: int, id_usuario: int) -
     )
 
     solicitudes_pendientes_cotizar = (
-        db.query(func.count(Cotizacion.id_cotizacion))
+        db.query(func.count(Invitacion.id_invitacion))
         .filter(
-            Cotizacion.id_taller == id_taller,
-            Cotizacion.estado == "pendiente",
+            Invitacion.id_taller == id_taller,
+            Invitacion.estado == "pendiente",
         )
         .scalar()
         or 0
@@ -787,25 +848,25 @@ def listar_asignaciones_taller(db: Session, id_taller: int):
     asignaciones = list_asignaciones_by_taller(db, id_taller)
     solicitud_ids = [asignacion.id_solicitud for asignacion in asignaciones]
 
-    cotizaciones_por_solicitud = {}
+    invitaciones_por_solicitud = {}
     if solicitud_ids:
-        cotizaciones = (
-            db.query(Cotizacion)
+        invitaciones = (
+            db.query(Invitacion)
             .filter(
-                Cotizacion.id_taller == id_taller,
-                Cotizacion.id_solicitud.in_(solicitud_ids),
+                Invitacion.id_taller == id_taller,
+                Invitacion.id_solicitud.in_(solicitud_ids),
             )
             .all()
         )
-        cotizaciones_por_solicitud = {
-            cotizacion.id_solicitud: cotizacion.id_cotizacion
-            for cotizacion in cotizaciones
+        invitaciones_por_solicitud = {
+            invitacion.id_solicitud: invitacion.id_invitacion
+            for invitacion in invitaciones
         }
 
     return [
         {
             "id_asignacion": asignacion.id_asignacion,
-            "id_cotizacion": cotizaciones_por_solicitud.get(asignacion.id_solicitud),
+            "id_invitacion": invitaciones_por_solicitud.get(asignacion.id_solicitud),
             "id_solicitud": asignacion.id_solicitud,
             "id_taller": asignacion.id_taller,
             "id_proveedor": asignacion.id_proveedor,
@@ -816,3 +877,15 @@ def listar_asignaciones_taller(db: Session, id_taller: int):
         }
         for asignacion in asignaciones
     ]
+
+
+def listar_solicitudes_taller(db: Session, id_taller: int):
+    taller = get_active_taller_by_id(db, id_taller)
+    if not taller:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Taller no encontrado",
+        )
+
+    solicitudes = list_solicitudes_by_taller(db, id_taller)
+    return [_solicitud_taller_response(solicitud, taller) for solicitud in solicitudes]

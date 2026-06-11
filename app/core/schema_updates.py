@@ -106,6 +106,95 @@ def apply_schema_updates() -> None:
             DROP COLUMN IF EXISTS especialidad
         """,
         """
+        ALTER TABLE taller
+            ADD COLUMN IF NOT EXISTS tiempo_respuesta INTEGER
+        """,
+        """
+        ALTER TABLE solicitud
+            ADD COLUMN IF NOT EXISTS ronda_actual INTEGER DEFAULT 1
+        """,
+        """
+        ALTER TABLE solicitud
+            ADD COLUMN IF NOT EXISTS recomendacion TEXT
+        """,
+        """
+        UPDATE solicitud
+        SET ronda_actual = 1
+        WHERE ronda_actual IS NULL
+        """,
+        """
+        ALTER TABLE solicitud
+            ALTER COLUMN ronda_actual SET NOT NULL
+        """,
+        """
+        ALTER TABLE invitacion
+            ADD COLUMN IF NOT EXISTS numero_ronda INTEGER DEFAULT 1,
+            ADD COLUMN IF NOT EXISTS fecha_hora_envio TIMESTAMP DEFAULT now(),
+            ADD COLUMN IF NOT EXISTS fecha_hora_expiracion TIMESTAMP NULL,
+            ADD COLUMN IF NOT EXISTS fecha_hora_respuesta TIMESTAMP NULL
+        """,
+        """
+        DO $$
+        BEGIN
+            IF to_regclass('public.cotizacion') IS NOT NULL THEN
+                INSERT INTO invitacion (
+                    id_invitacion,
+                    id_solicitud,
+                    id_taller,
+                    numero_ronda,
+                    estado,
+                    fecha_hora_envio,
+                    fecha_hora_expiracion,
+                    fecha_hora_respuesta
+                )
+                SELECT
+                    c.id_cotizacion,
+                    c.id_solicitud,
+                    c.id_taller,
+                    COALESCE(s.ronda_actual, 1),
+                    c.estado,
+                    now(),
+                    NULL,
+                    NULL
+                FROM cotizacion c
+                LEFT JOIN solicitud s ON s.id_solicitud = c.id_solicitud
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM invitacion i
+                    WHERE i.id_invitacion = c.id_cotizacion
+                );
+            END IF;
+        END $$
+        """,
+        """
+        UPDATE invitacion
+        SET numero_ronda = 1
+        WHERE numero_ronda IS NULL
+        """,
+        """
+        UPDATE invitacion
+        SET fecha_hora_envio = now()
+        WHERE fecha_hora_envio IS NULL
+        """,
+        """
+        SELECT setval(
+            pg_get_serial_sequence('invitacion', 'id_invitacion'),
+            COALESCE((SELECT MAX(id_invitacion) FROM invitacion), 1),
+            (SELECT COUNT(*) > 0 FROM invitacion)
+        )
+        """,
+        """
+        ALTER TABLE invitacion
+            ALTER COLUMN numero_ronda SET NOT NULL,
+            ALTER COLUMN estado SET DEFAULT 'pendiente',
+            ALTER COLUMN estado SET NOT NULL,
+            ALTER COLUMN fecha_hora_envio SET NOT NULL,
+            DROP COLUMN IF EXISTS monto
+        """,
+        """
+        DROP TABLE IF EXISTS cotizacion
+        """,
+        """
         DELETE FROM especialidad e
         WHERE e.codigo IN ('MANT', 'DIAG', 'ELEC', 'AUX', 'MEC')
             AND NOT EXISTS (

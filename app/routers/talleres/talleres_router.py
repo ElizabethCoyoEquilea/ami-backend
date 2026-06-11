@@ -11,6 +11,7 @@ from app.core.database import SessionLocal, get_db
 from app.core.security import get_current_user, verify_token
 from app.models.usuarios.usuario import User
 from app.schemas.solicitudes.asignacion_schema import AsignacionConSolicitudResponse
+from app.schemas.solicitudes.solicitud_schema import SolicitudResponse
 from app.schemas.talleres.taller_schema import (
     ListarProveedoresResponse,
     ProveedorServicioEspecialidadesUpdate,
@@ -37,6 +38,7 @@ from app.services.talleres_service import (
     registrar_taller,
     listar_proveedores_taller,
     listar_asignaciones_taller,
+    listar_solicitudes_taller,
     actualizar_especialidades_proveedor_servicio,
 )
 from app.services.workshop_recommendation_service import recommend_workshops
@@ -280,6 +282,19 @@ def obtener_asignaciones_taller(
     current_user: User = Depends(get_current_user),
 ):
     return listar_asignaciones_taller(db, id_taller)
+
+
+@router.get(
+    "/{id_taller}/solicitudes",
+    response_model=list[SolicitudResponse],
+    status_code=status.HTTP_200_OK,
+)
+def obtener_solicitudes_taller(
+    id_taller: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return listar_solicitudes_taller(db, id_taller)
 
 
 @router.websocket("/{id_taller}/dashboard/ws")

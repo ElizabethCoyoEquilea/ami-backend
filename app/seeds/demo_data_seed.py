@@ -12,7 +12,7 @@ from app.core.schema_updates import apply_schema_updates
 from app.core.security import get_password_hash
 from app.models.solicitudes.asignacion import Asignacion
 from app.models.solicitudes.calificacion import Calificacion
-from app.models.solicitudes.cotizacion import Cotizacion
+from app.models.solicitudes.cotizacion import Invitacion
 from app.models.solicitudes.detalle_servicio import DetalleServicio
 from app.models.solicitudes.pago import Pago
 from app.models.solicitudes.servicio import Servicio
@@ -384,21 +384,20 @@ def _crear_flujo_servicio(
     if estado_flujo == "pendiente":
         return
 
-    cotizacion_estado = {
+    invitacion_estado = {
         "cotizada": "enviado",
         "asignada": "aceptada",
         "curso": "aceptada",
         "pendiente_pago": "aceptada",
         "pagado": "aceptada",
     }[estado_flujo]
-    monto_cotizado = Decimal(str(random.randint(120, 420)))
-    cotizacion = Cotizacion(
+    invitacion = Invitacion(
         id_solicitud=solicitud.id_solicitud,
         id_taller=taller.id_taller,
-        monto=monto_cotizado,
-        estado=cotizacion_estado,
+        numero_ronda=solicitud.ronda_actual or 1,
+        estado=invitacion_estado,
     )
-    db.add(cotizacion)
+    db.add(invitacion)
     db.flush()
 
     if estado_flujo == "cotizada":
@@ -558,13 +557,13 @@ def _crear_servicios_realizados_ayrton(
         db.add(solicitud)
         db.flush()
 
-        cotizacion = Cotizacion(
+        invitacion = Invitacion(
             id_solicitud=solicitud.id_solicitud,
             id_taller=taller.id_taller,
-            monto=total,
+            numero_ronda=solicitud.ronda_actual or 1,
             estado="aceptada",
         )
-        db.add(cotizacion)
+        db.add(invitacion)
         db.flush()
 
         asignacion = Asignacion(
@@ -804,7 +803,7 @@ def run_demo_seed() -> None:
 
         db.commit()
         print(
-            "Demo seed completado: 5 admins/talleres, catalogos, proveedores, clientes, vehiculos, solicitudes, cotizaciones, asignaciones, servicios, pagos y calificaciones."
+            "Demo seed completado: 5 admins/talleres, catalogos, proveedores, clientes, vehiculos, solicitudes, invitaciones, asignaciones, servicios, pagos y calificaciones."
         )
         print(f"Password demo para usuarios creados: {PASSWORD}")
     except Exception:

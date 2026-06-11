@@ -1,6 +1,7 @@
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.models.solicitudes.cotizacion import Invitacion
 from app.models.solicitudes.solicitud import Solicitud
 from app.models.usuarios.cliente import Cliente
 from app.models.usuarios.vehiculo import Vehiculo
@@ -28,6 +29,33 @@ def get_solicitud_by_id_for_user(
     )
 
 
+def list_solicitudes_by_user(
+    db: Session,
+    id_usuario: int,
+) -> list[Solicitud]:
+    return (
+        db.query(Solicitud)
+        .join(Vehiculo, Vehiculo.id_vehiculo == Solicitud.id_vehiculo)
+        .join(Cliente, Cliente.id_cliente == Vehiculo.id_cliente)
+        .filter(Cliente.id_usuario == id_usuario)
+        .order_by(Solicitud.fecha.desc(), Solicitud.id_solicitud.desc())
+        .all()
+    )
+
+
+def list_solicitudes_by_taller(
+    db: Session,
+    id_taller: int,
+) -> list[Solicitud]:
+    return (
+        db.query(Solicitud)
+        .join(Invitacion, Invitacion.id_solicitud == Solicitud.id_solicitud)
+        .filter(Invitacion.id_taller == id_taller)
+        .order_by(Solicitud.fecha.desc(), Solicitud.id_solicitud.desc())
+        .all()
+    )
+
+
 def create_solicitud(
     db: Session,
     solicitud_data: SolicitudCreate,
@@ -52,10 +80,12 @@ def update_solicitud_ai_analysis(
     solicitud: Solicitud,
     prioridad: str | None,
     observaciones: str | None,
+    recomendacion: str | None,
 ) -> Solicitud:
     try:
         solicitud.prioridad = prioridad
         solicitud.observaciones = observaciones
+        solicitud.recomendacion = recomendacion
         db.commit()
         db.refresh(solicitud)
         return solicitud

@@ -5,7 +5,11 @@ from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.usuarios.usuario import User
 from app.schemas.solicitudes.solicitud_schema import SolicitudResponse
-from app.services.solicitudes_service import obtener_solicitud_por_id, registrar_solicitud
+from app.services.solicitudes_service import (
+    listar_mis_solicitudes,
+    obtener_solicitud_por_id,
+    registrar_solicitud,
+)
 
 
 router = APIRouter(prefix="/solicitudes", tags=["Solicitudes"])
@@ -33,6 +37,14 @@ def crear_solicitud(
         audio=audio,
         imagenes=imagenes,
     )
+
+
+@router.get("/mis-solicitudes", response_model=list[SolicitudResponse], status_code=status.HTTP_200_OK)
+def obtener_mis_solicitudes(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return listar_mis_solicitudes(db, current_user)
 
 
 @router.get("/{id_solicitud}", response_model=SolicitudResponse, status_code=status.HTTP_200_OK)

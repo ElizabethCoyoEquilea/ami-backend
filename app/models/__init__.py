@@ -10,7 +10,7 @@ from .talleres.taller import Taller
 from .talleres.especialidad import Especialidad
 from .talleres.catalogo_servicio import CatalogoServicio
 from .solicitudes.solicitud import Solicitud
-from .solicitudes.cotizacion import Cotizacion
+from .solicitudes.cotizacion import Invitacion
 from .solicitudes.asignacion import Asignacion
 from .solicitudes.servicio import Servicio
 from .solicitudes.detalle_servicio import DetalleServicio

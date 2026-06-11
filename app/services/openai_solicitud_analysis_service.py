@@ -12,18 +12,23 @@ from app.core.config import settings
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 OPENAI_RESPONSES_ENDPOINT = "https://api.openai.com/v1/responses"
+OPENAI_TRANSCRIPTIONS_ENDPOINT = "https://api.openai.com/v1/audio/transcriptions"
 logger = logging.getLogger("openai_solicitud_analysis")
 
 
-def _build_prompt(descripcion: str) -> str:
+def _build_prompt(descripcion: str, transcripcion_audio: str | None = None) -> str:
+    audio_section = (
+        f"\n\nTranscripcion del audio del cliente:\n{transcripcion_audio}"
+        if transcripcion_audio
+        else ""
+    )
     return f"""
 Eres un asistente tecnico para una plataforma de auxilio mecanico.
 
-Analiza la descripcion del problema del vehiculo y las imagenes adjuntas si existen.
-Ignora cualquier audio: no lo recibiras y no debes mencionarlo.
+Analiza la descripcion del problema del vehiculo, la transcripcion del audio y las imagenes adjuntas si existen.
 
 Descripcion del cliente:
-{descripcion}
+{descripcion}{audio_section}
 
 Devuelve solamente JSON valido con esta estructura exacta:
 {{
@@ -52,6 +57,43 @@ def _image_part_from_path(image_url_path: str) -> dict | None:
         "type": "input_image",
         "image_url": f"data:{mime_type};base64,{image_data}",
     }
+
+
+def _audio_path_from_url_path(audio_url_path: str) -> Path | None:
+    audio_path = PROJECT_ROOT / audio_url_path.lstrip("/")
+    if not audio_path.exists() or not audio_path.is_file():
+        return None
+
+    return audio_path
+
+
+def _transcribe_audio(audio_url_path: str) -> str | None:
+    audio_path = _audio_path_from_url_path(audio_url_path)
+    if not audio_path:
+        return None
+
+    with audio_path.open("rb") as audio_file:
+        response = requests.post(
+            OPENAI_TRANSCRIPTIONS_ENDPOINT,
+            headers={
+                "Authorization": f"Bearer {settings.OPENAI_API_KEY}",
+            },
+            data={
+                "model": settings.OPENAI_TRANSCRIPTION_MODEL,
+                "response_format": "json",
+            },
+            files={
+                "file": (audio_path.name, audio_file, mimetypes.guess_type(audio_path.name)[0] or "application/octet-stream"),
+            },
+            timeout=60,
+        )
+    response.raise_for_status()
+
+    response_data = response.json()
+    text = response_data.get("text")
+    if isinstance(text, str) and text.strip():
+        return text.strip()
+    return None
 
 
 def _extract_text(response_data: dict) -> str | None:
@@ -144,12 +186,21 @@ def _request_openai(content: list[dict]) -> dict:
 
 def analyze_solicitud_with_openai(
     descripcion: str,
+    audio: str | None = None,
     imagenes: list[str] | None = None,
 ) -> dict | None:
     if not settings.OPENAI_API_KEY:
         return None
 
-    content = [{"type": "input_text", "text": _build_prompt(descripcion)}]
+    transcripcion_audio = None
+    if audio:
+        try:
+            transcripcion_audio = _transcribe_audio(audio)
+        except Exception:
+            logger.exception("openai_audio_transcription_error audio=%s", audio)
+
+    content = [{"type": "input_text", "text": _build_prompt(descripcion, transcripcion_audio)}]
+
     for image_url_path in imagenes or []:
         image_part = _image_part_from_path(image_url_path)
         if image_part:

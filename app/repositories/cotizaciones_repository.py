@@ -1,94 +1,79 @@
-from decimal import Decimal
+from datetime import datetime
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.solicitudes.asignacion import Asignacion
-from app.models.solicitudes.cotizacion import Cotizacion
+from app.models.solicitudes.cotizacion import Invitacion
 from app.models.solicitudes.solicitud import Solicitud
 from app.models.usuarios.vehiculo import Vehiculo
 
 
-def get_cotizacion_finalizada_by_solicitud(
+def get_invitacion_finalizada_by_solicitud(
     db: Session,
     id_solicitud: int,
-) -> Cotizacion | None:
+) -> Invitacion | None:
     return (
-        db.query(Cotizacion)
+        db.query(Invitacion)
         .filter(
-            Cotizacion.id_solicitud == id_solicitud,
-            Cotizacion.estado.in_(["aceptada", "aceptado", "rechazada", "rechazado"]),
+            Invitacion.id_solicitud == id_solicitud,
+            Invitacion.estado.in_(["aceptada", "aceptado", "rechazada", "rechazado"]),
         )
         .first()
     )
 
 
-def get_cotizacion_detalle_by_id(
+def get_invitacion_detalle_by_id(
     db: Session,
-    id_cotizacion: int,
-) -> Cotizacion | None:
+    id_invitacion: int,
+) -> Invitacion | None:
     return (
-        db.query(Cotizacion)
+        db.query(Invitacion)
         .options(
-            joinedload(Cotizacion.solicitud)
+            joinedload(Invitacion.solicitud)
             .joinedload(Solicitud.vehiculo)
             .joinedload(Vehiculo.cliente),
-            joinedload(Cotizacion.taller),
+            joinedload(Invitacion.taller),
         )
-        .filter(Cotizacion.id_cotizacion == id_cotizacion)
+        .filter(Invitacion.id_invitacion == id_invitacion)
         .first()
     )
 
 
-def create_cotizacion_pendiente(
+def create_invitacion_pendiente(
     db: Session,
     solicitud: Solicitud,
     id_taller: int,
-) -> Cotizacion:
+) -> Invitacion:
     try:
-        cotizacion = Cotizacion(
+        invitacion = Invitacion(
             id_solicitud=solicitud.id_solicitud,
             id_taller=id_taller,
-            monto=Decimal("0.00"),
+            numero_ronda=solicitud.ronda_actual or 1,
             estado="pendiente",
         )
         solicitud.estado = "enviado"
-        db.add(cotizacion)
+        db.add(invitacion)
         db.commit()
-        db.refresh(cotizacion)
-        return cotizacion
+        db.refresh(invitacion)
+        return invitacion
     except SQLAlchemyError:
         db.rollback()
         raise
 
 
-def update_monto_cotizacion_admin(
+def aceptar_invitacion_cliente(
     db: Session,
-    cotizacion: Cotizacion,
-    monto: Decimal,
-) -> Cotizacion:
-    try:
-        cotizacion.monto = monto
-        cotizacion.estado = "enviado"
-        db.commit()
-        db.refresh(cotizacion)
-        return cotizacion
-    except SQLAlchemyError:
-        db.rollback()
-        raise
-
-
-def aceptar_cotizacion_cliente(
-    db: Session,
-    cotizacion: Cotizacion,
+    invitacion: Invitacion,
 ) -> Asignacion:
     try:
-        cotizacion.estado = "aceptada"
-        cotizacion.solicitud.estado = "aceptada"
+        invitacion.estado = "aceptada"
+        invitacion.fecha_hora_respuesta = datetime.now()
+        invitacion.solicitud.estado = "aceptada"
 
         asignacion = Asignacion(
-            id_solicitud=cotizacion.id_solicitud,
-            id_taller=cotizacion.id_taller,
+            id_solicitud=invitacion.id_solicitud,
+            id_taller=invitacion.id_taller,
             id_proveedor=None,
             estado="Pendiente de asignar personal",
         )
@@ -101,32 +86,33 @@ def aceptar_cotizacion_cliente(
         raise
 
 
-def rechazar_cotizacion_cliente(
+def rechazar_invitacion_cliente(
     db: Session,
-    cotizacion: Cotizacion,
-) -> Cotizacion:
+    invitacion: Invitacion,
+) -> Invitacion:
     try:
-        cotizacion.estado = "rechazada"
-        cotizacion.solicitud.estado = "pendiente"
+        invitacion.estado = "rechazada"
+        invitacion.fecha_hora_respuesta = datetime.now()
+        invitacion.solicitud.estado = "pendiente"
         db.commit()
-        db.refresh(cotizacion)
-        return cotizacion
+        db.refresh(invitacion)
+        return invitacion
     except SQLAlchemyError:
         db.rollback()
         raise
 
 
-def list_cotizaciones_pendientes_by_taller(
+def list_invitaciones_pendientes_by_taller(
     db: Session,
     id_taller: int,
-) -> list[Cotizacion]:
+) -> list[Invitacion]:
     return (
-        db.query(Cotizacion)
-        .options(joinedload(Cotizacion.solicitud))
+        db.query(Invitacion)
+        .options(joinedload(Invitacion.solicitud))
         .filter(
-            Cotizacion.id_taller == id_taller,
-            Cotizacion.estado == "pendiente",
+            Invitacion.id_taller == id_taller,
+            Invitacion.estado == "pendiente",
         )
-        .order_by(Cotizacion.id_cotizacion)
+        .order_by(Invitacion.id_invitacion)
         .all()
     )

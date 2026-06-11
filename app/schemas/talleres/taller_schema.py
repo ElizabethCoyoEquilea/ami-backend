@@ -18,6 +18,7 @@ class TallerBase(BaseModel):
     longitud: float | None = None
     latitud: float | None = None
     qr: str | None = Field(default=None, max_length=1000)
+    tiempo_respuesta: int | None = Field(default=None, ge=0)
     horario_inicio: time
     horario_fin: time
     estado: str | None = None
@@ -70,6 +71,7 @@ class TallerUpdate(BaseModel):
     longitud: float | None = None
     latitud: float | None = None
     qr: str | None = Field(default=None, max_length=1000)
+    tiempo_respuesta: int | None = Field(default=None, ge=0)
     horario_inicio: time | None = None
     horario_fin: time | None = None
     estado: str | None = None
@@ -125,6 +127,7 @@ class TallerResponse(BaseModel):
     longitud: float | None
     latitud: float | None
     qr: str | None
+    tiempo_respuesta: int | None
     horario_inicio: time
     horario_fin: time
     estado: str
