@@ -4,7 +4,7 @@
 
 - `Dockerfile`: construye la imagen del backend FastAPI.
 - `.dockerignore`: evita copiar entorno virtual, secretos, logs y uploads.
-- `docker-compose.yml`: levanta la API junto con PostgreSQL.
+- `docker-compose.yml`: levanta la API usando la conexion de base de datos definida en `.env`.
 - `.env.docker.example`: plantilla segura de variables para Docker.
 
 ## Ejecutar localmente con Docker Compose
@@ -19,6 +19,8 @@ cp .env.docker.example .env
 
 ```env
 DB_PASSWORD=una-contrasena-segura
+DB_HOST=endpoint-o-ip-de-tu-postgres
+DB_PORT=5432
 JWT_SECRET_KEY=una-clave-larga-segura
 INVITATION_ACCEPT_URL_BASE=http://localhost:8000/auth/talleres/invitaciones/aceptar
 ```
@@ -63,7 +65,8 @@ docker compose logs -f api
 ## Notas de produccion
 
 - No subas `.env` ni archivos JSON de credenciales al repositorio.
-- Si usas una base de datos administrada como Amazon RDS, elimina el servicio `db` del `docker-compose.yml` y configura `DB_HOST` con el endpoint de RDS.
+- La base de datos no se levanta en Docker Compose; el contenedor usa `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` y `DB_PASSWORD` desde `.env`.
+- Si usas Amazon RDS, `DB_HOST` debe ser el endpoint de RDS y el Security Group de RDS debe permitir conexiones desde la EC2.
 - Para HTTPS en produccion, coloca Nginx, Caddy, Traefik o un Application Load Balancer delante del contenedor.
 - Los archivos subidos quedan en el volumen Docker `uploads_data`.
 - La aplicacion crea tablas y ejecuta seeds al iniciar, segun la logica actual de `app/main.py`.
