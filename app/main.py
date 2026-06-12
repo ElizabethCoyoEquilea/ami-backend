@@ -32,7 +32,9 @@ UPLOADS_DIR = Path(__file__).resolve().parent.parent / "uploads"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 
-WS_PROVIDER_LOG_FILE = Path(__file__).resolve().parent.parent / "ws_proveedor.log"
+LOGS_DIR = Path(__file__).resolve().parent.parent / "logs"
+LOGS_DIR.mkdir(parents=True, exist_ok=True)
+WS_PROVIDER_LOG_FILE = LOGS_DIR / "ws_proveedor.log"
 ws_provider_logger = logging.getLogger("ws_proveedor")
 if not ws_provider_logger.handlers:
     ws_provider_logger.setLevel(logging.INFO)

@@ -5,3 +5,4 @@ __pycache__/
 .vscode/
 uploads/
 ws_proveedor.log
+logs/
