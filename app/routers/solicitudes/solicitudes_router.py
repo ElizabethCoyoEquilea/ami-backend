@@ -4,8 +4,13 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.usuarios.usuario import User
-from app.schemas.solicitudes.solicitud_schema import SolicitudResponse
+from app.schemas.solicitudes.solicitud_schema import (
+    CancelarSolicitudRequest,
+    CancelarSolicitudResponse,
+    SolicitudResponse,
+)
 from app.services.solicitudes_service import (
+    cancelar_solicitud,
     listar_mis_solicitudes,
     obtener_solicitud_por_id,
     registrar_solicitud,
@@ -37,6 +42,19 @@ async def crear_solicitud(
         audio=audio,
         imagenes=imagenes,
     )
+
+
+@router.post(
+    "/cancelar_solicitud",
+    response_model=CancelarSolicitudResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def cancelar_solicitud_endpoint(
+    data: CancelarSolicitudRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return await cancelar_solicitud(db, data, current_user)
 
 
 @router.get("/mis-solicitudes", response_model=list[SolicitudResponse], status_code=status.HTTP_200_OK)

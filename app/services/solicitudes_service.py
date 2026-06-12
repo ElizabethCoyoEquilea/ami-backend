@@ -7,6 +7,7 @@ from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.models.solicitudes.cotizacion import Invitacion
 from app.models.usuarios.usuario import User
 from app.repositories.solicitudes_repository import (
     create_solicitud,
@@ -15,9 +16,15 @@ from app.repositories.solicitudes_repository import (
     update_solicitud_ai_analysis,
 )
 from app.repositories.vehiculos_repository import get_vehiculo_by_id
-from app.schemas.solicitudes.solicitud_schema import SolicitudCreate
+from app.schemas.solicitudes.solicitud_schema import (
+    CancelarSolicitudRequest,
+    SolicitudCreate,
+)
 from app.services.cotizaciones_service import crear_invitaciones_automaticas_para_solicitud
-from app.services.notificaciones_service import notificar_nueva_solicitud_a_talleres
+from app.services.notificaciones_service import (
+    notificar_nueva_solicitud_a_talleres,
+    notificar_solicitud_cancelada_a_talleres,
+)
 from app.services.openai_solicitud_analysis_service import analyze_solicitud_with_openai
 
 
@@ -189,3 +196,59 @@ def listar_mis_solicitudes(
 ) -> list[dict]:
     solicitudes = list_solicitudes_by_user(db, current_user.id_usuario)
     return [_solicitud_response(solicitud) for solicitud in solicitudes]
+
+
+async def cancelar_solicitud(
+    db: Session,
+    data: CancelarSolicitudRequest,
+    current_user: User,
+) -> dict:
+    solicitud = get_solicitud_by_id_for_user(db, data.id_solicitud, current_user.id_usuario)
+    if not solicitud:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Solicitud no encontrada",
+        )
+
+    invitaciones = (
+        db.query(Invitacion)
+        .filter(Invitacion.id_solicitud == data.id_solicitud)
+        .all()
+    )
+
+    try:
+        solicitud.estado = "cancelada"
+        for invitacion in invitaciones:
+            invitacion.estado = "cancelada"
+        db.commit()
+        db.refresh(solicitud)
+        for invitacion in invitaciones:
+            db.refresh(invitacion)
+    except SQLAlchemyError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="No se pudo cancelar la solicitud",
+        )
+
+    try:
+        await notificar_solicitud_cancelada_a_talleres(db, invitaciones)
+    except Exception:
+        logger.exception(
+            "No se pudo notificar cancelacion de solicitud id_solicitud=%s",
+            solicitud.id_solicitud,
+        )
+
+    return {
+        "id_solicitud": solicitud.id_solicitud,
+        "estado": solicitud.estado,
+        "invitaciones": [
+            {
+                "id_invitacion": invitacion.id_invitacion,
+                "id_solicitud": invitacion.id_solicitud,
+                "id_taller": invitacion.id_taller,
+                "estado": invitacion.estado,
+            }
+            for invitacion in invitaciones
+        ],
+    }

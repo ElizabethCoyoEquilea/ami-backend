@@ -14,6 +14,21 @@ async def notificar_nueva_solicitud_a_talleres(db: Session, invitaciones) -> Non
     await _notificar_talleres_por_invitaciones(db, invitaciones, payload)
 
 
+async def notificar_solicitud_cancelada_a_talleres(db: Session, invitaciones) -> None:
+    invitaciones = list(invitaciones)
+    id_solicitud = invitaciones[0].id_solicitud if invitaciones else None
+    payload = {
+        "tipo": "solcitud_cancelada",
+        "data": {
+            "id_solicitud": id_solicitud,
+            "id_invitaciones": [
+                invitacion.id_invitacion for invitacion in invitaciones
+            ],
+        },
+    }
+    await _notificar_talleres_por_invitaciones(db, invitaciones, payload)
+
+
 async def notificar_invitacion_expirada_a_talleres(db: Session, invitaciones) -> None:
     payload = {"tipo": "invitacion_expirada"}
     await _notificar_talleres_por_invitaciones(db, invitaciones, payload)

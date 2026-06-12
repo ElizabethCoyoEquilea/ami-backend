@@ -45,6 +45,26 @@ class SolicitudAsignacionResponse(BaseModel):
         from_attributes = True
 
 
+class CancelarSolicitudRequest(BaseModel):
+    id_solicitud: int = Field(gt=0)
+
+
+class SolicitudInvitacionCanceladaResponse(BaseModel):
+    id_invitacion: int
+    id_solicitud: int
+    id_taller: int
+    estado: str
+
+    class Config:
+        from_attributes = True
+
+
+class CancelarSolicitudResponse(BaseModel):
+    id_solicitud: int
+    estado: str
+    invitaciones: list[SolicitudInvitacionCanceladaResponse]
+
+
 class SolicitudResponse(BaseModel):
     id_solicitud: int
     id_vehiculo: int
