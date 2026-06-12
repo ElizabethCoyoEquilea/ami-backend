@@ -13,6 +13,7 @@ from app.repositories.reportes_repository import (
     get_customer_summary_report,
     get_first_user_taller_id,
     get_pending_services_report,
+    get_provider_completed_services_report,
     get_service_history_report,
     get_service_income_report,
     get_service_status_summary_report,
@@ -71,6 +72,12 @@ REPORT_TEMPLATES: dict[ReportType, dict[str, Any]] = {
         "columns": ["tecnico", "cantidad_servicios", "servicios_completados", "servicios_pendientes", "total_generado"],
         "examples": ["productividad de tecnicos", "quien hizo mas servicios"],
     },
+    "provider_completed_services": {
+        "title": "Servicios finalizados por proveedor",
+        "description": "Cantidad de servicios finalizados, completados o pagados agrupados por proveedor de servicios.",
+        "columns": ["id_proveedor", "proveedor", "servicios_finalizados", "total_generado", "ultimo_servicio_finalizado"],
+        "examples": ["cuantos servicios finalizados tiene cada proveedor estos ultimos 3 meses", "servicios completados por proveedor"],
+    },
     "service_status_summary": {
         "title": "Resumen de estados",
         "description": "Cantidad y porcentaje de servicios por estado.",
@@ -88,6 +95,7 @@ REPORT_HANDLERS = {
     "pending_services": get_pending_services_report,
     "vehicle_history": get_vehicle_history_report,
     "technician_productivity": get_technician_productivity_report,
+    "provider_completed_services": get_provider_completed_services_report,
     "service_status_summary": get_service_status_summary_report,
 }
 
@@ -106,6 +114,16 @@ def _this_month_range(today: date) -> tuple[date, date]:
 def _current_week_range(today: date) -> tuple[date, date]:
     start = today - timedelta(days=today.weekday())
     return start, today
+
+
+def _subtract_months(value: date, months: int) -> date:
+    month = value.month - months
+    year = value.year
+    while month <= 0:
+        month += 12
+        year -= 1
+    day = min(value.day, monthrange(year, month)[1])
+    return value.replace(year=year, month=month, day=day)
 
 
 def _build_prompt(prompt: str) -> str:
@@ -228,6 +246,9 @@ def _fallback_report_request(prompt: str) -> dict:
         start, end = _last_month_range(today)
         filters["date_from"] = start
         filters["date_to"] = end
+    elif "ultimos 3 meses" in text or "últimos 3 meses" in text or "estos ultimos 3 meses" in text or "estos últimos 3 meses" in text:
+        filters["date_from"] = _subtract_months(today, 3)
+        filters["date_to"] = today
     elif "este mes" in text:
         start, end = _this_month_range(today)
         filters["date_from"] = start
@@ -245,7 +266,10 @@ def _fallback_report_request(prompt: str) -> dict:
             filters["limit"] = max(1, min(int(token), 200))
             break
 
-    if "ingreso" in text or "generamos" in text or "factur" in text:
+    if ("proveedor" in text or "proveedores" in text) and ("finalizado" in text or "completado" in text or "terminado" in text):
+        report_type = "provider_completed_services"
+        filters["status"] = "finalizado"
+    elif "ingreso" in text or "generamos" in text or "factur" in text:
         report_type = "service_income"
     elif "mas solicit" in text or "más solicit" in text or "mas pedido" in text or "top" in text:
         report_type = "top_services"

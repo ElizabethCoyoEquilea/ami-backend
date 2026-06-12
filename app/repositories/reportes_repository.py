@@ -275,6 +275,46 @@ def get_technician_productivity_report(db: Session, id_taller: int, filters: Rep
     return sorted(grouped.values(), key=lambda item: item["cantidad_servicios"], reverse=True)[: filters.limit]
 
 
+def get_provider_completed_services_report(db: Session, id_taller: int, filters: ReporteFilters) -> list[dict[str, Any]]:
+    query = (
+        db.query(
+            ProveedorServicio.id_proveedor,
+            Persona.nombre_completo.label("proveedor"),
+            func.count(Servicio.id_servicio).label("servicios_finalizados"),
+            func.coalesce(func.sum(Servicio.total), 0).label("total_generado"),
+            func.max(Servicio.fecha_fin).label("ultimo_servicio_finalizado"),
+        )
+        .join(Asignacion, Asignacion.id_proveedor == ProveedorServicio.id_proveedor)
+        .join(Servicio, Servicio.id_asignacion == Asignacion.id_asignacion)
+        .join(User, User.id_usuario == ProveedorServicio.id_usuario)
+        .join(Persona, Persona.id_persona == User.id_persona)
+        .join(Solicitud, Solicitud.id_solicitud == Asignacion.id_solicitud)
+        .join(Vehiculo, Vehiculo.id_vehiculo == Solicitud.id_vehiculo)
+        .join(Cliente, Cliente.id_cliente == Vehiculo.id_cliente)
+        .filter(
+            Asignacion.id_taller == id_taller,
+            func.lower(Servicio.estado).in_(["finalizado", "completado", "pagado"]),
+        )
+    )
+    rows = (
+        _apply_common_filters(query, filters)
+        .group_by(ProveedorServicio.id_proveedor, Persona.nombre_completo)
+        .order_by(func.count(Servicio.id_servicio).desc())
+        .limit(filters.limit)
+        .all()
+    )
+    return [
+        {
+            "id_proveedor": row.id_proveedor,
+            "proveedor": row.proveedor,
+            "servicios_finalizados": row.servicios_finalizados,
+            "total_generado": _money(row.total_generado),
+            "ultimo_servicio_finalizado": _dt(row.ultimo_servicio_finalizado),
+        }
+        for row in rows
+    ]
+
+
 def get_service_status_summary_report(db: Session, id_taller: int, filters: ReporteFilters) -> list[dict[str, Any]]:
     query = (
         db.query(Servicio.estado, func.count(Servicio.id_servicio).label("cantidad"))

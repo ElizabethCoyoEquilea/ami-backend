@@ -12,6 +12,7 @@ ReportType = Literal[
     "pending_services",
     "vehicle_history",
     "technician_productivity",
+    "provider_completed_services",
     "service_status_summary",
 ]
 
