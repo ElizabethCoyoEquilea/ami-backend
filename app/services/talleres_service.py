@@ -16,7 +16,10 @@ from app.models.solicitudes.calificacion import Calificacion
 from app.models.solicitudes.cotizacion import Invitacion
 from app.models.solicitudes.pago import Pago
 from app.models.solicitudes.servicio import Servicio
+from app.models.solicitudes.solicitud import Solicitud
+from app.models.solicitudes.zona import Zona
 from app.models.solicitudes.detalle_servicio import DetalleServicio
+from app.models.talleres.catalogo_servicio import CatalogoServicio
 from app.models.talleres.taller import Taller
 from app.models.talleres.especialidad import Especialidad
 from app.models.usuarios.persona import Persona
@@ -254,6 +257,59 @@ def _conteo_servicios_por_mes(db: Session, id_taller: int, anio: int) -> dict:
     }
 
 
+def _zonas_con_mayor_demanda(db: Session, id_taller: int) -> list[dict]:
+    zonas = db.query(Zona).order_by(Zona.id_zona).all()
+    resultados = []
+    for zona in zonas:
+        cantidad = (
+            db.query(func.count(func.distinct(Solicitud.id_solicitud)))
+            .join(Invitacion, Invitacion.id_solicitud == Solicitud.id_solicitud)
+            .filter(
+                Invitacion.id_taller == id_taller,
+                Solicitud.id_zona == zona.id_zona,
+            )
+            .scalar()
+            or 0
+        )
+        resultados.append(
+            {
+                "id_zona": zona.id_zona,
+                "nombre": zona.nombre,
+                "cantidad": int(cantidad),
+            }
+        )
+
+    return sorted(resultados, key=lambda item: item["cantidad"], reverse=True)
+
+
+def _solicitudes_por_tipo_servicio(db: Session, id_taller: int) -> list[dict]:
+    especialidades = db.query(Especialidad).order_by(Especialidad.id_especialidad).all()
+    resultados = []
+    for especialidad in especialidades:
+        cantidad = (
+            db.query(func.count(DetalleServicio.id_detalle_servicio))
+            .join(CatalogoServicio, CatalogoServicio.id_catalogo_servicio == DetalleServicio.id_catalogo_servicio)
+            .join(Servicio, Servicio.id_servicio == DetalleServicio.id_servicio)
+            .join(Asignacion, Asignacion.id_asignacion == Servicio.id_asignacion)
+            .filter(
+                Asignacion.id_taller == id_taller,
+                CatalogoServicio.id_especialidad == especialidad.id_especialidad,
+            )
+            .scalar()
+            or 0
+        )
+        resultados.append(
+            {
+                "id_especialidad": especialidad.id_especialidad,
+                "codigo": especialidad.codigo,
+                "nombre": especialidad.nombre,
+                "cantidad": int(cantidad),
+            }
+        )
+
+    return resultados
+
+
 def _validar_horario_completo(taller: Taller, taller_data: TallerUpdate) -> None:
     horario_inicio = taller_data.horario_inicio or taller.horario_inicio
     horario_fin = taller_data.horario_fin or taller.horario_fin
@@ -309,16 +365,7 @@ def obtener_dashboard_taller_hoy(db: Session, id_taller: int, id_usuario: int) -
 
     ahora = datetime.now(LA_PAZ_TZ)
     inicio_hoy, fin_hoy = _rango_dia_local(ahora)
-    inicio_semana, _ = _rango_dia_local(ahora - timedelta(days=ahora.weekday()))
-    mismo_dia_mes_anterior = _mismo_dia_mes_anterior(ahora)
-    inicio_mes_anterior, fin_mes_anterior = _rango_dia_local(mismo_dia_mes_anterior)
 
-    total_proveedores = (
-        db.query(func.count(ProveedorServicio.id_proveedor))
-        .filter(ProveedorServicio.id_taller == id_taller)
-        .scalar()
-        or 0
-    )
     proveedores_disponibles = (
         db.query(func.count(ProveedorServicio.id_proveedor))
         .filter(
@@ -330,18 +377,6 @@ def obtener_dashboard_taller_hoy(db: Session, id_taller: int, id_usuario: int) -
     )
 
     ingresos_hoy = _sumar_ingresos_taller_en_rango(db, id_taller, inicio_hoy, fin_hoy)
-    ingresos_mes_anterior = _sumar_ingresos_taller_en_rango(
-        db,
-        id_taller,
-        inicio_mes_anterior,
-        fin_mes_anterior,
-    )
-    variacion = None
-    if ingresos_mes_anterior > 0:
-        variacion = round(
-            ((ingresos_hoy - ingresos_mes_anterior) / ingresos_mes_anterior) * 100,
-            2,
-        )
 
     servicios_finalizados_hoy = (
         db.query(func.count(Servicio.id_servicio))
@@ -355,52 +390,38 @@ def obtener_dashboard_taller_hoy(db: Session, id_taller: int, id_usuario: int) -
         .scalar()
         or 0
     )
-    servicios_finalizados_semana = (
-        db.query(func.count(Servicio.id_servicio))
-        .join(Asignacion, Asignacion.id_asignacion == Servicio.id_asignacion)
-        .filter(
-            Asignacion.id_taller == id_taller,
-            Servicio.fecha_fin >= inicio_semana,
-            Servicio.fecha_fin < fin_hoy,
-            Servicio.estado == "pagado",
-        )
-        .scalar()
-        or 0
-    )
 
-    solicitudes_pendientes_cotizar = (
-        db.query(func.count(Invitacion.id_invitacion))
+    tiempo_promedio_asignacion = None
+    if taller.tiempo_respuesta is not None:
+        tiempo_promedio_asignacion = round(float(taller.tiempo_respuesta) / 60, 2)
+
+    solicitudes_pendientes = (
+        db.query(func.count(func.distinct(Invitacion.id_solicitud)))
         .filter(
             Invitacion.id_taller == id_taller,
-            Invitacion.estado == "pendiente",
+            Invitacion.estado.in_(("enviada", "enviado")),
         )
         .scalar()
         or 0
     )
-    asignaciones_pendientes_designar = (
-        db.query(func.count(Asignacion.id_asignacion))
+    casos_no_atendidos_hoy = (
+        db.query(func.count(func.distinct(Invitacion.id_solicitud)))
         .filter(
-            Asignacion.id_taller == id_taller,
-            Asignacion.id_proveedor.is_(None),
-            Asignacion.estado.in_(
-                (
-                    "pendiente",
-                    "Pendiente de asignar personal",
-                )
-            ),
+            Invitacion.id_taller == id_taller,
+            Invitacion.fecha_hora_envio >= inicio_hoy,
+            Invitacion.fecha_hora_envio < fin_hoy,
+            Invitacion.estado != "aceptada",
         )
         .scalar()
         or 0
     )
-    servicios_en_curso = (
-        db.query(func.count(Servicio.id_servicio))
-        .join(Asignacion, Asignacion.id_asignacion == Servicio.id_asignacion)
+    tiempo_promedio_llegada = (
+        db.query(func.avg(Asignacion.tiempo_llegada))
         .filter(
             Asignacion.id_taller == id_taller,
-            Servicio.estado == "En curso",
+            Asignacion.tiempo_llegada.isnot(None),
         )
         .scalar()
-        or 0
     )
 
     calificacion_data = (
@@ -418,21 +439,18 @@ def obtener_dashboard_taller_hoy(db: Session, id_taller: int, id_usuario: int) -
         "id_taller": id_taller,
         "fecha": ahora.date().isoformat(),
         "generado_en": ahora,
-        "total_proveedores": int(total_proveedores),
         "proveedores_disponibles": int(proveedores_disponibles),
         "ingresos_hoy": ingresos_hoy,
-        "ingresos_mes_anterior_mismo_dia": ingresos_mes_anterior,
-        "variacion_ingresos_vs_mes_anterior": variacion,
         "servicios_finalizados_hoy": int(servicios_finalizados_hoy),
-        "servicios_finalizados_semana": int(servicios_finalizados_semana),
         "calificacion_promedio": round(float(calificacion_data[0] or 0), 1),
-        "total_resenas": int(calificacion_data[1] or 0),
-        "operaciones": {
-            "solicitudes_pendientes_cotizar": int(solicitudes_pendientes_cotizar),
-            "asignaciones_pendientes_designar": int(asignaciones_pendientes_designar),
-            "servicios_en_curso": int(servicios_en_curso),
-        },
-        "servicios_por_mes": _conteo_servicios_por_mes(db, id_taller, ahora.year),
+        "tiempo_promedio_asignacion": tiempo_promedio_asignacion,
+        "solicitudes_pendientes": int(solicitudes_pendientes),
+        "casos_no_atendidos_hoy": int(casos_no_atendidos_hoy),
+        "tiempo_promedio_llegada": round(float(tiempo_promedio_llegada), 2)
+        if tiempo_promedio_llegada is not None
+        else None,
+        "zonas_mayor_demanda": _zonas_con_mayor_demanda(db, id_taller),
+        "solicitudes_por_tipo_servicio": _solicitudes_por_tipo_servicio(db, id_taller),
     }
 
 

@@ -249,17 +249,16 @@ class TallerDashboardHoyResponse(BaseModel):
     id_taller: int
     fecha: str
     generado_en: datetime
-    total_proveedores: int
     proveedores_disponibles: int
     ingresos_hoy: float
-    ingresos_mes_anterior_mismo_dia: float
-    variacion_ingresos_vs_mes_anterior: float | None
     servicios_finalizados_hoy: int
-    servicios_finalizados_semana: int
     calificacion_promedio: float
-    total_resenas: int
-    operaciones: dict
-    servicios_por_mes: dict
+    tiempo_promedio_asignacion: float | None = None
+    solicitudes_pendientes: int
+    casos_no_atendidos_hoy: int
+    tiempo_promedio_llegada: float | None = None
+    zonas_mayor_demanda: list[dict]
+    solicitudes_por_tipo_servicio: list[dict]
 
 
 class ReporteItemCantidadResponse(BaseModel):
