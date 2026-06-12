@@ -1,4 +1,5 @@
 from .solicitud import Solicitud
+from .zona import Zona
 from .cotizacion import Invitacion
 from .asignacion import Asignacion
 from .servicio import Servicio

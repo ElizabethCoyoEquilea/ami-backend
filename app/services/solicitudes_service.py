@@ -26,6 +26,7 @@ from app.services.notificaciones_service import (
     notificar_solicitud_cancelada_a_talleres,
 )
 from app.services.openai_solicitud_analysis_service import analyze_solicitud_with_openai
+from app.services.zonas_service import obtener_zona_por_coordenadas
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -54,6 +55,7 @@ def _solicitud_response(solicitud) -> dict:
     return {
         "id_solicitud": solicitud.id_solicitud,
         "id_vehiculo": solicitud.id_vehiculo,
+        "id_zona": solicitud.id_zona,
         "descripcion": solicitud.descripcion,
         "latitud": solicitud.latitud,
         "direccion": solicitud.direccion,
@@ -120,8 +122,11 @@ async def registrar_solicitud(
         for imagen in imagenes or []
     ] or None
 
+    zona = obtener_zona_por_coordenadas(db, latitud, longitud)
+
     solicitud_data = SolicitudCreate(
         id_vehiculo=id_vehiculo,
+        id_zona=zona.id_zona if zona else None,
         descripcion=descripcion,
         latitud=latitud,
         direccion=direccion,

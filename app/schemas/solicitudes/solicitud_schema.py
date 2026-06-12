@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field, field_validator
 
 class SolicitudCreate(BaseModel):
     id_vehiculo: int = Field(gt=0)
+    id_zona: int | None = Field(default=None, gt=0)
     descripcion: str = Field(min_length=1, max_length=500)
     latitud: float
     direccion: str | None = Field(default=None, max_length=255)
@@ -68,6 +69,7 @@ class CancelarSolicitudResponse(BaseModel):
 class SolicitudResponse(BaseModel):
     id_solicitud: int
     id_vehiculo: int
+    id_zona: int | None
     descripcion: str
     latitud: float | None
     direccion: str | None

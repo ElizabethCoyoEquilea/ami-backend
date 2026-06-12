@@ -118,6 +118,39 @@ def apply_schema_updates() -> None:
             ADD COLUMN IF NOT EXISTS recomendacion TEXT
         """,
         """
+        CREATE TABLE IF NOT EXISTS zona (
+            id_zona SERIAL PRIMARY KEY,
+            nombre VARCHAR(50) NOT NULL UNIQUE,
+            descripcion TEXT NULL,
+            latitud_centro DOUBLE PRECISION NOT NULL,
+            longitud_centro DOUBLE PRECISION NOT NULL,
+            radio_aproximado DOUBLE PRECISION NOT NULL
+        )
+        """,
+        """
+        ALTER TABLE solicitud
+            ADD COLUMN IF NOT EXISTS id_zona INTEGER
+        """,
+        """
+        CREATE INDEX IF NOT EXISTS ix_solicitud_id_zona
+            ON solicitud (id_zona)
+        """,
+        """
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1
+                FROM pg_constraint
+                WHERE conname = 'fk_solicitud_zona'
+            ) THEN
+                ALTER TABLE solicitud
+                    ADD CONSTRAINT fk_solicitud_zona
+                    FOREIGN KEY (id_zona)
+                    REFERENCES zona(id_zona);
+            END IF;
+        END $$
+        """,
+        """
         DO $$
         BEGIN
             IF to_regclass('public.asignacion') IS NOT NULL

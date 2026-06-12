@@ -9,6 +9,7 @@ class Solicitud(Base):
 
     id_solicitud = Column(Integer, primary_key=True, autoincrement=True, index=True)
     id_vehiculo = Column(Integer, ForeignKey("vehiculo.id_vehiculo"), nullable=False, index=True)
+    id_zona = Column(Integer, ForeignKey("zona.id_zona"), nullable=True, index=True)
     descripcion = Column(String(500), nullable=False)
     latitud = Column(Float, nullable=True)
     direccion = Column(String(255), nullable=True)
@@ -23,5 +24,6 @@ class Solicitud(Base):
     estado = Column(String(30), nullable=False, default="pendiente")
 
     vehiculo = relationship("Vehiculo", back_populates="solicitudes")
+    zona = relationship("Zona", back_populates="solicitudes")
     invitaciones = relationship("Invitacion", back_populates="solicitud", cascade="all, delete-orphan")
     asignaciones = relationship("Asignacion", back_populates="solicitud", cascade="all, delete-orphan")
