@@ -74,7 +74,12 @@ def _haversine_distance_km(
     return EARTH_RADIUS_KM * c
 
 
-def _solicitud_taller_response(solicitud, taller: Taller, invitacion: Invitacion) -> dict:
+def _solicitud_taller_response(
+    solicitud,
+    taller: Taller,
+    invitacion: Invitacion,
+    asignacion: Asignacion | None = None,
+) -> dict:
     distancia_desde_taller = None
     if (
         taller.latitud is not None
@@ -118,6 +123,20 @@ def _solicitud_taller_response(solicitud, taller: Taller, invitacion: Invitacion
             "fecha_hora_expiracion": invitacion.fecha_hora_expiracion,
             "fecha_hora_respuesta": invitacion.fecha_hora_respuesta,
         },
+        "asignacion": {
+            "id_asignacion": asignacion.id_asignacion,
+            "id_solicitud": asignacion.id_solicitud,
+            "id_taller": asignacion.id_taller,
+            "id_proveedor": asignacion.id_proveedor,
+            "fecha_inicio": asignacion.fecha_inicio,
+            "fecha_fin": asignacion.fecha_fin,
+            "tiempo_llegada": float(asignacion.tiempo_llegada)
+            if asignacion.tiempo_llegada is not None
+            else None,
+            "estado": asignacion.estado,
+        }
+        if asignacion
+        else None,
     }
 
 
@@ -461,8 +480,8 @@ def obtener_reporte_operativo_taller(
         .join(Asignacion, Asignacion.id_asignacion == Servicio.id_asignacion)
         .filter(
             Asignacion.id_taller == id_taller,
-            func.coalesce(Servicio.fecha_fin, Servicio.fecha_inicio, Asignacion.fecha) >= inicio,
-            func.coalesce(Servicio.fecha_fin, Servicio.fecha_inicio, Asignacion.fecha) < fin_exclusivo,
+            func.coalesce(Servicio.fecha_fin, Servicio.fecha_inicio, Asignacion.fecha_inicio) >= inicio,
+            func.coalesce(Servicio.fecha_fin, Servicio.fecha_inicio, Asignacion.fecha_inicio) < fin_exclusivo,
             func.lower(Servicio.estado) == "anulado",
         )
         .scalar()
@@ -880,7 +899,9 @@ def listar_asignaciones_taller(db: Session, id_taller: int):
             "id_solicitud": asignacion.id_solicitud,
             "id_taller": asignacion.id_taller,
             "id_proveedor": asignacion.id_proveedor,
-            "fecha": asignacion.fecha,
+            "fecha_inicio": asignacion.fecha_inicio,
+            "fecha_fin": asignacion.fecha_fin,
+            "tiempo_llegada": asignacion.tiempo_llegada,
             "estado": asignacion.estado,
             "solicitud": asignacion.solicitud,
             "servicios": asignacion.servicios,
@@ -898,7 +919,16 @@ def listar_solicitudes_taller(db: Session, id_taller: int):
         )
 
     invitaciones = list_invitaciones_con_solicitud_by_taller(db, id_taller)
+    asignaciones_por_solicitud = {
+        asignacion.id_solicitud: asignacion
+        for asignacion in list_asignaciones_by_taller(db, id_taller)
+    }
     return [
-        _solicitud_taller_response(invitacion.solicitud, taller, invitacion)
+        _solicitud_taller_response(
+            invitacion.solicitud,
+            taller,
+            invitacion,
+            asignaciones_por_solicitud.get(invitacion.id_solicitud),
+        )
         for invitacion in invitaciones
     ]

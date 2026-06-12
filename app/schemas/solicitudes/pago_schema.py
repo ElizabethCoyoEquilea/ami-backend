@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -47,7 +48,9 @@ class PagoClienteAsignacionResponse(BaseModel):
     id_asignacion: int
     id_taller: int
     id_proveedor: int | None
-    fecha: datetime
+    fecha_inicio: datetime
+    fecha_fin: datetime | None
+    tiempo_llegada: Decimal | None
     estado: str
 
 

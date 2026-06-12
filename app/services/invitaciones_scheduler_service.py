@@ -10,6 +10,7 @@ from app.services.cotizaciones_service import (
 from app.services.notificaciones_service import (
     notificar_invitacion_expirada_a_talleres,
     notificar_nueva_solicitud_a_talleres,
+    notificar_solicitud_expirada_a_cliente,
 )
 
 
@@ -28,6 +29,7 @@ async def procesar_invitaciones_vencidas() -> dict[str, int]:
             if not solicitud:
                 continue
 
+            estado_anterior = solicitud.estado
             invitaciones_expiradas, nuevas_invitaciones = refresh_invitaciones_y_generar_siguiente_ronda(
                 db,
                 solicitud,
@@ -37,6 +39,8 @@ async def procesar_invitaciones_vencidas() -> dict[str, int]:
             total_nuevas_invitaciones += len(nuevas_invitaciones)
             await notificar_invitacion_expirada_a_talleres(db, invitaciones_expiradas)
             await notificar_nueva_solicitud_a_talleres(db, nuevas_invitaciones)
+            if estado_anterior != "sin_cobertura" and solicitud.estado == "sin_cobertura":
+                await notificar_solicitud_expirada_a_cliente(solicitud)
 
         if solicitud_ids:
             logger.info(

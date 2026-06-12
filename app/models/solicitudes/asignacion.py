@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, Numeric, String, func
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
@@ -11,7 +11,9 @@ class Asignacion(Base):
     id_solicitud = Column(Integer, ForeignKey("solicitud.id_solicitud"), nullable=False, index=True)
     id_taller = Column(Integer, ForeignKey("taller.id_taller"), nullable=False, index=True)
     id_proveedor = Column(Integer, ForeignKey("proveedor_servicio.id_proveedor"), nullable=True, index=True)
-    fecha = Column(DateTime, nullable=False, server_default=func.now())
+    fecha_inicio = Column(DateTime, nullable=False, server_default=func.now())
+    fecha_fin = Column(DateTime, nullable=True)
+    tiempo_llegada = Column(Numeric(10, 2), nullable=True)
     estado = Column(String(30), nullable=False, default="pendiente")
 
     solicitud = relationship("Solicitud", back_populates="asignaciones")

@@ -66,7 +66,7 @@ def create_invitacion_enviada(
     db: Session,
     solicitud: Solicitud,
     id_taller: int,
-    expiration_minutes: int = 2,
+    expiration_minutes: int = 3,
 ) -> Invitacion:
     try:
         now = datetime.now()

@@ -416,7 +416,9 @@ def _crear_flujo_servicio(
         id_solicitud=solicitud.id_solicitud,
         id_taller=taller.id_taller,
         id_proveedor=proveedor.id_proveedor if proveedor else None,
-        fecha=datetime.now() - timedelta(days=random.randint(1, 30)),
+        fecha_inicio=datetime.now() - timedelta(days=random.randint(1, 30)),
+        fecha_fin=None,
+        tiempo_llegada=None,
         estado=asignacion_estado,
     )
     db.add(asignacion)
@@ -573,7 +575,9 @@ def _crear_servicios_realizados_ayrton(
             id_solicitud=solicitud.id_solicitud,
             id_taller=taller.id_taller,
             id_proveedor=proveedor.id_proveedor,
-            fecha=fecha_inicio - timedelta(minutes=rng.randint(10, 90)),
+            fecha_inicio=fecha_inicio - timedelta(minutes=rng.randint(10, 90)),
+            fecha_fin=fecha_fin,
+            tiempo_llegada=None,
             estado="Asignado",
         )
         db.add(asignacion)

@@ -26,3 +26,25 @@ def get_asignacion_detalle_by_id(
         .filter(Asignacion.id_asignacion == id_asignacion)
         .first()
     )
+
+
+def get_asignacion_detalle_by_solicitud_id(
+    db: Session,
+    id_solicitud: int,
+) -> Asignacion | None:
+    return (
+        db.query(Asignacion)
+        .options(
+            joinedload(Asignacion.taller),
+            joinedload(Asignacion.proveedor_servicio),
+            joinedload(Asignacion.solicitud)
+            .joinedload(Solicitud.vehiculo)
+            .joinedload(Vehiculo.cliente),
+            joinedload(Asignacion.servicios)
+            .joinedload(Servicio.detalles_servicio)
+            .joinedload(DetalleServicio.catalogo_servicio),
+        )
+        .filter(Asignacion.id_solicitud == id_solicitud)
+        .order_by(Asignacion.id_asignacion.desc())
+        .first()
+    )

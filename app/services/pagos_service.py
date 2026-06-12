@@ -66,7 +66,9 @@ def listar_pagos_cliente(db: Session, id_usuario: int) -> list[dict]:
                     "id_asignacion": asignacion.id_asignacion,
                     "id_taller": asignacion.id_taller,
                     "id_proveedor": asignacion.id_proveedor,
-                    "fecha": asignacion.fecha,
+                    "fecha_inicio": asignacion.fecha_inicio,
+                    "fecha_fin": asignacion.fecha_fin,
+                    "tiempo_llegada": asignacion.tiempo_llegada,
                     "estado": asignacion.estado,
                 },
                 "solicitud": {

@@ -118,6 +118,63 @@ def apply_schema_updates() -> None:
             ADD COLUMN IF NOT EXISTS recomendacion TEXT
         """,
         """
+        DO $$
+        BEGIN
+            IF to_regclass('public.asignacion') IS NOT NULL
+                AND EXISTS (
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_schema = 'public'
+                        AND table_name = 'asignacion'
+                        AND column_name = 'fecha'
+                )
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_schema = 'public'
+                        AND table_name = 'asignacion'
+                        AND column_name = 'fecha_inicio'
+                )
+            THEN
+                ALTER TABLE asignacion RENAME COLUMN fecha TO fecha_inicio;
+            END IF;
+        END $$
+        """,
+        """
+        ALTER TABLE asignacion
+            ADD COLUMN IF NOT EXISTS fecha_inicio TIMESTAMP DEFAULT now(),
+            ADD COLUMN IF NOT EXISTS fecha_fin TIMESTAMP NULL,
+            ADD COLUMN IF NOT EXISTS tiempo_llegada DECIMAL(10, 2) NULL
+        """,
+        """
+        DO $$
+        BEGIN
+            IF EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                    AND table_name = 'asignacion'
+                    AND column_name = 'fecha'
+            ) THEN
+                UPDATE asignacion
+                SET fecha_inicio = COALESCE(fecha_inicio, fecha)
+                WHERE fecha_inicio IS NULL;
+
+                ALTER TABLE asignacion DROP COLUMN fecha;
+            END IF;
+        END $$
+        """,
+        """
+        UPDATE asignacion
+        SET fecha_inicio = now()
+        WHERE fecha_inicio IS NULL
+        """,
+        """
+        ALTER TABLE asignacion
+            ALTER COLUMN fecha_inicio SET DEFAULT now(),
+            ALTER COLUMN fecha_inicio SET NOT NULL
+        """,
+        """
         UPDATE solicitud
         SET ronda_actual = 1
         WHERE ronda_actual IS NULL

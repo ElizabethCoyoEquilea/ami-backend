@@ -24,6 +24,10 @@ from app.services.cotizaciones_service import (
     procesar_respuesta_invitacion_cliente,
     registrar_invitacion_pendiente,
 )
+from app.services.notificaciones_service import (
+    notificar_solicitud_aceptada_a_proveedores_taller,
+    notificar_solicitud_asignada_a_cliente,
+)
 from app.services.usuarios_service import get_current_provider_profile
 from app.websockets.connection_manager import clients_ws_manager, providers_ws_manager
 
@@ -411,6 +415,301 @@ async def websocket_provider(websocket: WebSocket, token: str):
                     "data": get_current_provider_profile(db, usuario),
                 }
                 await _send_provider_json(websocket, id_usuario, perfil_payload)
+                continue
+
+            if tipo == "recorriendo":
+                data = mensaje.get("data") or {}
+                id_asignacion = data.get("id_asignacion")
+                latitud = data.get("latitud")
+                longitud = data.get("longitud")
+
+                try:
+                    id_asignacion = int(id_asignacion)
+                    latitud = float(latitud)
+                    longitud = float(longitud)
+                except (TypeError, ValueError):
+                    logger.warning(
+                        "validation_error user=%s tipo=%s payload=%s",
+                        id_usuario,
+                        tipo,
+                        mensaje,
+                    )
+                    await _send_provider_json(
+                        websocket,
+                        id_usuario,
+                        {
+                            "tipo": "error",
+                            "data": {
+                                "mensaje": "id_asignacion, latitud y longitud deben ser numeros",
+                            },
+                        },
+                    )
+                    continue
+
+                asignacion = get_asignacion_with_solicitud_by_id(db, id_asignacion)
+                solicitud = asignacion.solicitud if asignacion else None
+                vehiculo = solicitud.vehiculo if solicitud else None
+                cliente = vehiculo.cliente if vehiculo else None
+
+                if not asignacion or not solicitud or not cliente:
+                    logger.warning(
+                        "invalid_route_update user=%s id_asignacion=%s",
+                        id_usuario,
+                        id_asignacion,
+                    )
+                    await _send_provider_json(
+                        websocket,
+                        id_usuario,
+                        {
+                            "tipo": "error",
+                            "data": {
+                                "mensaje": "Asignacion o cliente no encontrado",
+                            },
+                        },
+                    )
+                    continue
+
+                proveedor_actual = get_active_provider_assignment_by_user_and_taller(
+                    db,
+                    id_usuario,
+                    asignacion.id_taller,
+                )
+                if (
+                    not proveedor_actual
+                    or asignacion.id_proveedor != proveedor_actual.id_proveedor
+                ):
+                    logger.warning(
+                        "route_update_forbidden user=%s id_asignacion=%s id_taller=%s",
+                        id_usuario,
+                        id_asignacion,
+                        asignacion.id_taller,
+                    )
+                    await _send_provider_json(
+                        websocket,
+                        id_usuario,
+                        {
+                            "tipo": "error",
+                            "data": {
+                                "mensaje": "La asignacion no pertenece al proveedor autenticado",
+                            },
+                        },
+                    )
+                    continue
+
+                cliente_payload = {
+                    "tipo": "proveedor_recorrido",
+                    "data": {
+                        "id_asignacion": asignacion.id_asignacion,
+                        "id_solicitud": solicitud.id_solicitud,
+                        "latitud": latitud,
+                        "longitud": longitud,
+                    },
+                }
+                websocket_cliente_enviado = await clients_ws_manager.send_to_user(
+                    cliente.id_usuario,
+                    cliente_payload,
+                )
+                logger.info(
+                    "provider_route_forwarded user=%s client_user=%s notified=%s id_asignacion=%s id_solicitud=%s",
+                    id_usuario,
+                    cliente.id_usuario,
+                    websocket_cliente_enviado,
+                    asignacion.id_asignacion,
+                    solicitud.id_solicitud,
+                )
+                continue
+
+            if tipo == "solicitud_aceptada":
+                data = mensaje.get("data") or {}
+                id_solicitud = data.get("id_solicitud")
+                id_invitacion = data.get("id_invitacion")
+                id_taller = data.get("id_taller")
+
+                try:
+                    id_solicitud = int(id_solicitud)
+                    id_invitacion = int(id_invitacion)
+                    id_taller = int(id_taller)
+                except (TypeError, ValueError):
+                    logger.warning(
+                        "validation_error user=%s tipo=%s payload=%s",
+                        id_usuario,
+                        tipo,
+                        mensaje,
+                    )
+                    await _send_provider_json(
+                        websocket,
+                        id_usuario,
+                        {
+                            "tipo": "error",
+                            "data": {
+                                "mensaje": "id_solicitud, id_invitacion e id_taller deben ser numeros",
+                            },
+                        },
+                    )
+                    continue
+
+                if id_taller not in allowed_taller_ids:
+                    logger.warning(
+                        "forbidden_taller user=%s id_taller=%s allowed_taller_ids=%s",
+                        id_usuario,
+                        id_taller,
+                        sorted(allowed_taller_ids),
+                    )
+                    await _send_provider_json(
+                        websocket,
+                        id_usuario,
+                        {
+                            "tipo": "error",
+                            "data": {
+                                "mensaje": "No tienes acceso al taller indicado",
+                            },
+                        },
+                    )
+                    continue
+
+                proveedor_actual = get_active_provider_assignment_by_user_and_taller(
+                    db,
+                    id_usuario,
+                    id_taller,
+                )
+                if not proveedor_actual:
+                    logger.warning(
+                        "provider_not_found_for_user user=%s id_taller=%s",
+                        id_usuario,
+                        id_taller,
+                    )
+                    await _send_provider_json(
+                        websocket,
+                        id_usuario,
+                        {
+                            "tipo": "error",
+                            "data": {
+                                "mensaje": "No existe proveedor activo para el usuario autenticado en el taller",
+                            },
+                        },
+                    )
+                    continue
+
+                solicitud = (
+                    db.query(Solicitud)
+                    .filter(Solicitud.id_solicitud == id_solicitud)
+                    .first()
+                )
+                invitacion = (
+                    db.query(Invitacion)
+                    .filter(
+                        Invitacion.id_invitacion == id_invitacion,
+                        Invitacion.id_solicitud == id_solicitud,
+                        Invitacion.id_taller == id_taller,
+                    )
+                    .first()
+                )
+                if not solicitud or not invitacion:
+                    logger.warning(
+                        "invalid_request_acceptance user=%s id_solicitud=%s id_invitacion=%s id_taller=%s",
+                        id_usuario,
+                        id_solicitud,
+                        id_invitacion,
+                        id_taller,
+                    )
+                    await _send_provider_json(
+                        websocket,
+                        id_usuario,
+                        {
+                            "tipo": "error",
+                            "data": {
+                                "mensaje": "Solicitud o invitacion no encontrada para el taller indicado",
+                            },
+                        },
+                    )
+                    continue
+
+                try:
+                    asignacion = Asignacion(
+                        id_solicitud=id_solicitud,
+                        id_taller=id_taller,
+                        id_proveedor=proveedor_actual.id_proveedor,
+                        fecha_inicio=datetime.now(),
+                        fecha_fin=None,
+                        tiempo_llegada=None,
+                        estado="asignada",
+                    )
+                    solicitud.estado = "asignada"
+                    invitacion.estado = "aceptada"
+                    invitacion.fecha_hora_respuesta = datetime.now()
+                    proveedor_actual.estado = "Ocupado"
+                    (
+                        db.query(Invitacion)
+                        .filter(
+                            Invitacion.id_solicitud == id_solicitud,
+                            Invitacion.id_invitacion != id_invitacion,
+                            Invitacion.estado != "expirada",
+                        )
+                        .update(
+                            {Invitacion.estado: "cerrada"},
+                            synchronize_session=False,
+                        )
+                    )
+                    db.add(asignacion)
+                    db.commit()
+                    db.refresh(asignacion)
+                    db.refresh(solicitud)
+                    db.refresh(invitacion)
+                    db.refresh(proveedor_actual)
+                except SQLAlchemyError:
+                    db.rollback()
+                    logger.exception(
+                        "solicitud_aceptada_error user=%s id_solicitud=%s id_invitacion=%s id_taller=%s",
+                        id_usuario,
+                        id_solicitud,
+                        id_invitacion,
+                        id_taller,
+                    )
+                    await _send_provider_json(
+                        websocket,
+                        id_usuario,
+                        {
+                            "tipo": "error",
+                            "data": {
+                                "mensaje": "No se pudo aceptar la solicitud",
+                            },
+                        },
+                    )
+                    continue
+
+                await notificar_solicitud_asignada_a_cliente(solicitud)
+
+                resultado_payload = {
+                    "tipo": "solicitud_aceptada_resultado",
+                    "data": {
+                        "id_asignacion": asignacion.id_asignacion,
+                        "id_solicitud": solicitud.id_solicitud,
+                        "id_invitacion": invitacion.id_invitacion,
+                        "id_taller": asignacion.id_taller,
+                        "id_proveedor": asignacion.id_proveedor,
+                        "estado_asignacion": asignacion.estado,
+                        "estado_solicitud": solicitud.estado,
+                        "estado_invitacion": invitacion.estado,
+                        "fecha_inicio": asignacion.fecha_inicio.isoformat()
+                        if asignacion.fecha_inicio
+                        else None,
+                    },
+                }
+                usuarios_notificados = await notificar_solicitud_aceptada_a_proveedores_taller(
+                    db,
+                    asignacion.id_taller,
+                    resultado_payload,
+                )
+                logger.info(
+                    "solicitud_accepted_by_provider user=%s id_asignacion=%s id_solicitud=%s id_invitacion=%s id_taller=%s id_proveedor=%s proveedores_notificados=%s",
+                    id_usuario,
+                    asignacion.id_asignacion,
+                    solicitud.id_solicitud,
+                    invitacion.id_invitacion,
+                    asignacion.id_taller,
+                    asignacion.id_proveedor,
+                    usuarios_notificados,
+                )
                 continue
 
             if tipo in {"proveedor_acepto", "proveedor_rechazo"}:
@@ -813,6 +1112,8 @@ async def websocket_provider(websocket: WebSocket, token: str):
                         "tipos_permitidos": [
                             "ping",
                             "obtener_perfil_proveedor",
+                            "recorriendo",
+                            "solicitud_aceptada",
                             "aceptar_asignacion",
                             "proveedor_acepto",
                             "proveedor_rechazo",

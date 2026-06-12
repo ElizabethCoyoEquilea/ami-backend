@@ -214,6 +214,17 @@ class InvitacionSolicitudTallerResponse(BaseModel):
     fecha_hora_respuesta: datetime | None
 
 
+class AsignacionSolicitudTallerResponse(BaseModel):
+    id_asignacion: int
+    id_solicitud: int
+    id_taller: int
+    id_proveedor: int | None
+    fecha_inicio: datetime
+    fecha_fin: datetime | None
+    tiempo_llegada: float | None
+    estado: str
+
+
 class SolicitudTallerResponse(BaseModel):
     id_solicitud: int
     id_vehiculo: int
@@ -231,6 +242,7 @@ class SolicitudTallerResponse(BaseModel):
     recomendacion: str | None = None
     distancia_desde_taller: float | None = None
     invitacion: InvitacionSolicitudTallerResponse
+    asignacion: AsignacionSolicitudTallerResponse | None = None
 
 
 class TallerDashboardHoyResponse(BaseModel):
