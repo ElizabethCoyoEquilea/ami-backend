@@ -97,6 +97,32 @@ async def notificar_en_camino_a_cliente(solicitud) -> bool:
     return enviado
 
 
+async def notificar_proveedor_llego_a_cliente(solicitud) -> bool:
+    cliente = solicitud.vehiculo.cliente if solicitud.vehiculo else None
+    if not cliente:
+        logger.warning(
+            "notificacion_proveedor_llego_sin_cliente id_solicitud=%s",
+            solicitud.id_solicitud,
+        )
+        return False
+
+    payload = {
+        "tipo": "proovedor_llego",
+        "data": {
+            "id_solicitud": solicitud.id_solicitud,
+        },
+    }
+    enviado = await clients_ws_manager.send_to_user(cliente.id_usuario, payload)
+    logger.info(
+        "notificacion_cliente_ws tipo=%s user=%s id_solicitud=%s enviado=%s",
+        payload["tipo"],
+        cliente.id_usuario,
+        solicitud.id_solicitud,
+        enviado,
+    )
+    return enviado
+
+
 async def notificar_solicitud_aceptada_a_proveedores_taller(
     db: Session,
     id_taller: int,

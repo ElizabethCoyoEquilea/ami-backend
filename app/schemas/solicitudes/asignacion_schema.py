@@ -24,6 +24,23 @@ class IniciarRecorridoResponse(BaseModel):
     websocket_enviado: bool
 
 
+class ConfirmarLlegadaRequest(BaseModel):
+    id_taller: int = Field(gt=0)
+    id_asignacion: int = Field(gt=0)
+    id_solicitud: int = Field(gt=0)
+    id_invitacion: int = Field(gt=0)
+
+
+class ConfirmarLlegadaResponse(BaseModel):
+    id_asignacion: int
+    id_solicitud: int
+    id_invitacion: int
+    id_taller: int
+    id_proveedor: int
+    estado_asignacion: str
+    tiempo_llegada: Decimal
+
+
 class AsignacionConSolicitudResponse(BaseModel):
     id_asignacion: int
     id_invitacion: int | None = None

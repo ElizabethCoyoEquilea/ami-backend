@@ -35,6 +35,7 @@ def list_solicitudes_by_user(
 ) -> list[Solicitud]:
     return (
         db.query(Solicitud)
+        .options(joinedload(Solicitud.asignaciones))
         .join(Vehiculo, Vehiculo.id_vehiculo == Solicitud.id_vehiculo)
         .join(Cliente, Cliente.id_cliente == Vehiculo.id_cliente)
         .filter(Cliente.id_usuario == id_usuario)

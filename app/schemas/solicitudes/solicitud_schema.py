@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -30,6 +31,20 @@ class SolicitudCreate(BaseModel):
         return value or None
 
 
+class SolicitudAsignacionResponse(BaseModel):
+    id_asignacion: int
+    id_solicitud: int
+    id_taller: int
+    id_proveedor: int | None
+    fecha_inicio: datetime
+    fecha_fin: datetime | None = None
+    tiempo_llegada: Decimal | None = None
+    estado: str
+
+    class Config:
+        from_attributes = True
+
+
 class SolicitudResponse(BaseModel):
     id_solicitud: int
     id_vehiculo: int
@@ -46,6 +61,7 @@ class SolicitudResponse(BaseModel):
     estado: str
     recomendacion: str | None = None
     distancia_desde_taller: float | None = None
+    asignacion: SolicitudAsignacionResponse | None = None
 
     class Config:
         from_attributes = True

@@ -27,6 +27,23 @@ logger = logging.getLogger("solicitudes")
 
 
 def _solicitud_response(solicitud) -> dict:
+    asignacion = None
+    if solicitud.asignaciones:
+        asignacion_actual = max(
+            solicitud.asignaciones,
+            key=lambda item: item.id_asignacion,
+        )
+        asignacion = {
+            "id_asignacion": asignacion_actual.id_asignacion,
+            "id_solicitud": asignacion_actual.id_solicitud,
+            "id_taller": asignacion_actual.id_taller,
+            "id_proveedor": asignacion_actual.id_proveedor,
+            "fecha_inicio": asignacion_actual.fecha_inicio,
+            "fecha_fin": asignacion_actual.fecha_fin,
+            "tiempo_llegada": asignacion_actual.tiempo_llegada,
+            "estado": asignacion_actual.estado,
+        }
+
     return {
         "id_solicitud": solicitud.id_solicitud,
         "id_vehiculo": solicitud.id_vehiculo,
@@ -42,6 +59,7 @@ def _solicitud_response(solicitud) -> dict:
         "ronda_actual": solicitud.ronda_actual,
         "estado": solicitud.estado,
         "recomendacion": solicitud.recomendacion,
+        "asignacion": asignacion,
     }
 
 
