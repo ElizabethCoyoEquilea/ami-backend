@@ -509,13 +509,23 @@ async def websocket_provider(websocket: WebSocket, token: str):
                     cliente.id_usuario,
                     cliente_payload,
                 )
+                admin_taller = asignacion.taller
+                websocket_admin_enviado = False
+                if admin_taller:
+                    websocket_admin_enviado = await providers_ws_manager.send_to_user(
+                        admin_taller.id_usuario,
+                        cliente_payload,
+                    )
                 logger.info(
-                    "provider_route_forwarded user=%s client_user=%s notified=%s id_asignacion=%s id_solicitud=%s",
+                    "provider_route_forwarded user=%s client_user=%s client_notified=%s admin_user=%s admin_notified=%s id_asignacion=%s id_solicitud=%s payload=%s",
                     id_usuario,
                     cliente.id_usuario,
                     websocket_cliente_enviado,
+                    admin_taller.id_usuario if admin_taller else None,
+                    websocket_admin_enviado,
                     asignacion.id_asignacion,
                     solicitud.id_solicitud,
+                    cliente_payload,
                 )
                 continue
 

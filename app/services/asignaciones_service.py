@@ -21,6 +21,7 @@ from app.schemas.solicitudes.asignacion_schema import (
 from app.services.notificaciones_service import (
     notificar_en_camino_a_cliente,
     notificar_proveedor_llego_a_cliente,
+    notificar_seguimiento_iniciado_a_admin_taller,
 )
 from app.models.usuarios.vehiculo import Vehiculo
 
@@ -77,6 +78,7 @@ async def iniciar_recorrido_asignacion(
 
     asignacion = (
         db.query(Asignacion)
+        .options(joinedload(Asignacion.taller))
         .filter(
             Asignacion.id_asignacion == data.id_asignacion,
             Asignacion.id_solicitud == data.id_solicitud,
@@ -126,6 +128,7 @@ async def iniciar_recorrido_asignacion(
         )
 
     websocket_enviado = await notificar_en_camino_a_cliente(solicitud)
+    await notificar_seguimiento_iniciado_a_admin_taller(asignacion, solicitud)
 
     return {
         "id_asignacion": asignacion.id_asignacion,

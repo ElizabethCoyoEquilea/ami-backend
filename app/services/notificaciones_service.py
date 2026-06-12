@@ -112,6 +112,52 @@ async def notificar_en_camino_a_cliente(solicitud) -> bool:
     return enviado
 
 
+async def notificar_seguimiento_iniciado_a_admin_taller(asignacion, solicitud) -> list[bool]:
+    taller = asignacion.taller
+    if not taller:
+        logger.warning(
+            "notificacion_seguimiento_iniciado_sin_taller id_asignacion=%s",
+            asignacion.id_asignacion,
+        )
+        return [False, False]
+
+    seguimiento_payload = {
+        "tipo": "seguimiento_iniciado",
+        "data": {
+            "id_asignacion": asignacion.id_asignacion,
+            "id_solicitud": solicitud.id_solicitud,
+        },
+    }
+    recorrido_payload = {
+        "tipo": "proveedor_recorrido",
+        "data": {
+            "id_asignacion": asignacion.id_asignacion,
+            "id_solicitud": solicitud.id_solicitud,
+            "latitud": taller.latitud,
+            "longitud": taller.longitud,
+        },
+    }
+
+    seguimiento_enviado = await providers_ws_manager.send_to_user(
+        taller.id_usuario,
+        seguimiento_payload,
+    )
+    recorrido_enviado = await providers_ws_manager.send_to_user(
+        taller.id_usuario,
+        recorrido_payload,
+    )
+    logger.info(
+        "notificacion_admin_taller_ws user_destino=%s id_taller=%s id_asignacion=%s seguimiento=%s recorrido=%s payload_recorrido=%s",
+        taller.id_usuario,
+        taller.id_taller,
+        asignacion.id_asignacion,
+        seguimiento_enviado,
+        recorrido_enviado,
+        recorrido_payload,
+    )
+    return [seguimiento_enviado, recorrido_enviado]
+
+
 async def notificar_proveedor_llego_a_cliente(solicitud) -> bool:
     cliente = solicitud.vehiculo.cliente if solicitud.vehiculo else None
     if not cliente:

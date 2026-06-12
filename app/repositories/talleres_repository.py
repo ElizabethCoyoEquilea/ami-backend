@@ -169,6 +169,7 @@ def get_asignacion_with_solicitud_by_id(db: Session, id_asignacion: int) -> Asig
     return (
         db.query(Asignacion)
         .options(
+            joinedload(Asignacion.taller),
             joinedload(Asignacion.solicitud)
             .joinedload(Solicitud.vehiculo)
             .joinedload(Vehiculo.cliente)
