@@ -343,7 +343,7 @@ def get_current_provider_profile(db: Session, current_user: User):
                     "id_usuario": assignment.id_usuario,
                     "id_taller": assignment.id_taller,
                     "estado": assignment.estado,
-                    "especialidad": assignment.especialidad,
+                    "proveedor_especialidades": assignment.proveedor_especialidades,
                 },
             }
             for assignment in provider_assignments
@@ -579,7 +579,6 @@ def accept_taller_invitation(db: Session, token: str):
             id_usuario=invited_user.id_usuario,
             id_taller=taller.id_taller,
             estado="Disponible",
-            especialidad=None,
         )
         db.add(proveedor_servicio)
 

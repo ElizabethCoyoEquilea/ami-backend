@@ -3,12 +3,15 @@ from .usuarios.persona import Persona
 from .usuarios.cliente import Cliente
 from .usuarios.vehiculo import Vehiculo
 from .usuarios.proveedor_servicio import ProveedorServicio
+from .usuarios.proveedor_especialidad import ProveedorEspecialidad
 from .usuarios.rol import Rol
 from .usuarios.usuario_rol import UsuarioRol
 from .talleres.taller import Taller
+from .talleres.especialidad import Especialidad
 from .talleres.catalogo_servicio import CatalogoServicio
+from .solicitudes.zona import Zona
 from .solicitudes.solicitud import Solicitud
-from .solicitudes.cotizacion import Cotizacion
+from .solicitudes.cotizacion import Invitacion
 from .solicitudes.asignacion import Asignacion
 from .solicitudes.servicio import Servicio
 from .solicitudes.detalle_servicio import DetalleServicio

@@ -1,3 +1,5 @@
+import asyncio
+from contextlib import suppress
 import logging
 from pathlib import Path
 
@@ -6,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.core.database import engine, Base
+from app.core.schema_updates import apply_schema_updates
 from app.routers.usuarios.usuarios_router import router as usuarios_router
 from app.routers.usuarios.auth_router import router as auth_router
 from app.routers.usuarios.vehiculos_router import router as vehiculos_router
@@ -16,11 +19,14 @@ from app.routers.solicitudes.asignaciones_router import router as asignaciones_r
 from app.routers.solicitudes.pagos_router import router as pagos_router
 from app.routers.talleres.talleres_router import router as talleres_router
 from app.routers.talleres.catalogo_servicio_router import router as catalogo_servicio_router
+from app.routers.reportes.reportes_router import router as reportes_router
 from app.routers.websockets_router import router as websockets_router
 from app.seeds import run_seeds
+from app.services.invitaciones_scheduler_service import ejecutar_scheduler_invitaciones
 import app.models
 
 app = FastAPI()
+invitaciones_scheduler_task: asyncio.Task | None = None
 
 UPLOADS_DIR = Path(__file__).resolve().parent.parent / "uploads"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
@@ -51,9 +57,22 @@ app.add_middleware(
 )
 
 @app.on_event("startup")
-def startup() -> None:
+async def startup() -> None:
+    global invitaciones_scheduler_task
     Base.metadata.create_all(bind=engine)
+    apply_schema_updates()
     run_seeds()
+    invitaciones_scheduler_task = asyncio.create_task(
+        ejecutar_scheduler_invitaciones(intervalo_segundos=30)
+    )
+
+
+@app.on_event("shutdown")
+async def shutdown() -> None:
+    if invitaciones_scheduler_task:
+        invitaciones_scheduler_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await invitaciones_scheduler_task
 
 app.include_router(auth_router)
 app.include_router(usuarios_router)
@@ -65,6 +84,7 @@ app.include_router(asignaciones_router)
 app.include_router(pagos_router)
 app.include_router(talleres_router)
 app.include_router(catalogo_servicio_router)
+app.include_router(reportes_router)
 app.include_router(websockets_router)
 
 @app.get("/")

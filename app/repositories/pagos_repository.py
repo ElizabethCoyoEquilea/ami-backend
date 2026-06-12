@@ -1,4 +1,5 @@
 from decimal import Decimal
+from datetime import datetime
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, joinedload
@@ -57,6 +58,22 @@ def update_pago(db: Session, pago: Pago, pago_data: PagoUpdate) -> Pago:
         servicio = db.query(Servicio).filter(Servicio.id_pago == pago.id_pago).first()
         if servicio:
             servicio.estado = "pagado"
+            asignacion = (
+                db.query(Asignacion)
+                .filter(Asignacion.id_asignacion == servicio.id_asignacion)
+                .first()
+            )
+            if asignacion:
+                asignacion.estado = "finalizado"
+                asignacion.fecha_fin = datetime.now()
+                solicitud = (
+                    db.query(Solicitud)
+                    .filter(Solicitud.id_solicitud == asignacion.id_solicitud)
+                    .first()
+                )
+                if solicitud:
+                    solicitud.estado = "finalizada"
+
             proveedor = (
                 db.query(ProveedorServicio)
                 .join(Asignacion, Asignacion.id_proveedor == ProveedorServicio.id_proveedor)

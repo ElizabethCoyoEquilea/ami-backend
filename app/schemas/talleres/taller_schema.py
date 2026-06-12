@@ -2,6 +2,8 @@ from datetime import datetime, time
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.schemas.usuarios.proveedor_especialidad_schema import ProveedorEspecialidadResponse
+
 
 MAX_RADIO_COBERTURA_KM = 100
 ESTADOS_TALLER = {"abierto", "cerrado"}
@@ -16,6 +18,7 @@ class TallerBase(BaseModel):
     longitud: float | None = None
     latitud: float | None = None
     qr: str | None = Field(default=None, max_length=1000)
+    tiempo_respuesta: int | None = Field(default=None, ge=0)
     horario_inicio: time
     horario_fin: time
     estado: str | None = None
@@ -68,6 +71,7 @@ class TallerUpdate(BaseModel):
     longitud: float | None = None
     latitud: float | None = None
     qr: str | None = Field(default=None, max_length=1000)
+    tiempo_respuesta: int | None = Field(default=None, ge=0)
     horario_inicio: time | None = None
     horario_fin: time | None = None
     estado: str | None = None
@@ -123,6 +127,7 @@ class TallerResponse(BaseModel):
     longitud: float | None
     latitud: float | None
     qr: str | None
+    tiempo_respuesta: int | None
     horario_inicio: time
     horario_fin: time
     estado: str
@@ -169,11 +174,27 @@ class ProveedorServicioResponse(BaseModel):
     id_usuario: int
     id_taller: int
     estado: str | None
-    especialidad: str | None
+    proveedor_especialidades: list[ProveedorEspecialidadResponse] = Field(default_factory=list)
     usuario: UsuarioBasicResponse
 
     class Config:
         from_attributes = True
+
+
+class ProveedorServicioEspecialidadesUpdate(BaseModel):
+    id_proveedor_servicio: int = Field(gt=0)
+    ids_especialidades: list[int] = Field(default_factory=list)
+
+    @field_validator("ids_especialidades")
+    @classmethod
+    def validar_ids_especialidades(cls, value: list[int]) -> list[int]:
+        ids_unicos: list[int] = []
+        for id_especialidad in value:
+            if id_especialidad <= 0:
+                raise ValueError("Todos los ids de especialidades deben ser mayores a 0")
+            if id_especialidad not in ids_unicos:
+                ids_unicos.append(id_especialidad)
+        return ids_unicos
 
 
 class ListarProveedoresResponse(BaseModel):
@@ -182,21 +203,62 @@ class ListarProveedoresResponse(BaseModel):
     proveedores: list[ProveedorServicioResponse]
 
 
+class InvitacionSolicitudTallerResponse(BaseModel):
+    id_invitacion: int
+    id_solicitud: int
+    id_taller: int
+    numero_ronda: int
+    estado: str
+    fecha_hora_envio: datetime
+    fecha_hora_expiracion: datetime | None
+    fecha_hora_respuesta: datetime | None
+
+
+class AsignacionSolicitudTallerResponse(BaseModel):
+    id_asignacion: int
+    id_solicitud: int
+    id_taller: int
+    id_proveedor: int | None
+    fecha_inicio: datetime
+    fecha_fin: datetime | None
+    tiempo_llegada: float | None
+    estado: str
+
+
+class SolicitudTallerResponse(BaseModel):
+    id_solicitud: int
+    id_vehiculo: int
+    descripcion: str
+    latitud: float | None
+    direccion: str | None
+    longitud: float | None
+    fecha: datetime
+    prioridad: str | None
+    observaciones: str | None
+    audio: str | None
+    imagenes: list[str] | None
+    ronda_actual: int
+    estado: str
+    recomendacion: str | None = None
+    distancia_desde_taller: float | None = None
+    invitacion: InvitacionSolicitudTallerResponse
+    asignacion: AsignacionSolicitudTallerResponse | None = None
+
+
 class TallerDashboardHoyResponse(BaseModel):
     id_taller: int
     fecha: str
     generado_en: datetime
-    total_proveedores: int
     proveedores_disponibles: int
     ingresos_hoy: float
-    ingresos_mes_anterior_mismo_dia: float
-    variacion_ingresos_vs_mes_anterior: float | None
     servicios_finalizados_hoy: int
-    servicios_finalizados_semana: int
     calificacion_promedio: float
-    total_resenas: int
-    operaciones: dict
-    servicios_por_mes: dict
+    tiempo_promedio_asignacion: float | None = None
+    solicitudes_pendientes: int
+    casos_no_atendidos_hoy: int
+    tiempo_promedio_llegada: float | None = None
+    zonas_mayor_demanda: list[dict]
+    solicitudes_por_tipo_servicio: list[dict]
 
 
 class ReporteItemCantidadResponse(BaseModel):

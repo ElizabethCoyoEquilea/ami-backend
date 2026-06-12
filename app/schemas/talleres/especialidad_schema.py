@@ -1,21 +1,12 @@
-from datetime import datetime
-
 from pydantic import BaseModel, Field, field_validator
 
-from app.schemas.talleres.especialidad_schema import EspecialidadResponse
 
-
-ESTADOS_CATALOGO_SERVICIO = {"activo", "inactivo"}
-
-
-class CatalogoServicioBase(BaseModel):
-    id_taller: int = Field(gt=0)
-    id_especialidad: int = Field(gt=0)
+class EspecialidadBase(BaseModel):
+    codigo: str = Field(min_length=1, max_length=50)
     nombre: str = Field(min_length=1, max_length=150)
     descripcion: str | None = Field(default=None, max_length=500)
-    precio_estandar: float = Field(ge=0)
 
-    @field_validator("nombre")
+    @field_validator("codigo", "nombre")
     @classmethod
     def validar_texto_obligatorio(cls, value: str) -> str:
         value = value.strip()
@@ -32,18 +23,16 @@ class CatalogoServicioBase(BaseModel):
         return value or None
 
 
-class CatalogoServicioCreate(CatalogoServicioBase):
+class EspecialidadCreate(EspecialidadBase):
     pass
 
 
-class CatalogoServicioUpdate(BaseModel):
+class EspecialidadUpdate(BaseModel):
+    codigo: str | None = Field(default=None, min_length=1, max_length=50)
     nombre: str | None = Field(default=None, min_length=1, max_length=150)
     descripcion: str | None = Field(default=None, max_length=500)
-    id_especialidad: int | None = Field(default=None, gt=0)
-    precio_estandar: float | None = Field(default=None, ge=0)
-    estado: str | None = None
 
-    @field_validator("nombre")
+    @field_validator("codigo", "nombre")
     @classmethod
     def validar_texto_si_llega(cls, value: str | None) -> str | None:
         if value is None:
@@ -61,27 +50,12 @@ class CatalogoServicioUpdate(BaseModel):
         value = value.strip()
         return value or None
 
-    @field_validator("estado")
-    @classmethod
-    def validar_estado(cls, value: str | None) -> str | None:
-        if value is None:
-            return value
-        value = value.strip().lower()
-        if value not in ESTADOS_CATALOGO_SERVICIO:
-            raise ValueError("El estado debe ser 'activo' o 'inactivo'")
-        return value
 
-
-class CatalogoServicioResponse(BaseModel):
-    id_catalogo_servicio: int
-    id_taller: int
+class EspecialidadResponse(BaseModel):
     id_especialidad: int
+    codigo: str
     nombre: str
     descripcion: str | None
-    precio_estandar: float
-    estado: str
-    fecha_creacion: datetime
-    especialidad: EspecialidadResponse | None = None
 
     class Config:
         from_attributes = True

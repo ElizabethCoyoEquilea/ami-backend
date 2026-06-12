@@ -2,6 +2,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.models.talleres.especialidad import Especialidad
 from app.models.talleres.catalogo_servicio import CatalogoServicio
 from app.repositories.catalogo_servicio_repository import (
     create_catalogo_servicio,
@@ -9,6 +10,7 @@ from app.repositories.catalogo_servicio_repository import (
     get_catalogo_servicio_by_id,
     list_active_catalogo_servicios_by_usuario,
     list_catalogo_servicios_by_taller,
+    list_especialidades,
     logical_delete_catalogo_servicio,
     update_catalogo_servicio,
 )
@@ -43,6 +45,7 @@ def registrar_catalogo_servicio(
     id_usuario: int,
 ) -> CatalogoServicio:
     _obtener_taller_del_usuario(db, catalogo_data.id_taller, id_usuario)
+    _validar_especialidad(db, catalogo_data.id_especialidad)
 
     try:
         return create_catalogo_servicio(db, catalogo_data, estado="activo")
@@ -55,6 +58,10 @@ def registrar_catalogo_servicio(
 
 def listar_catalogo_servicios(db: Session, id_usuario: int) -> list[CatalogoServicio]:
     return list_active_catalogo_servicios_by_usuario(db, id_usuario)
+
+
+def listar_especialidades(db: Session) -> list[Especialidad]:
+    return list_especialidades(db)
 
 
 def listar_catalogo_servicios_por_taller(
@@ -98,6 +105,8 @@ def modificar_catalogo_servicio(
             detail="Servicio del catalogo no encontrado",
         )
     _validar_servicio_pertenece_usuario(db, catalogo_servicio, id_usuario)
+    if catalogo_data.id_especialidad is not None:
+        _validar_especialidad(db, catalogo_data.id_especialidad)
 
     try:
         return update_catalogo_servicio(db, catalogo_servicio, catalogo_data)
@@ -128,4 +137,17 @@ def eliminar_catalogo_servicio(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="No se pudo eliminar el servicio del catalogo",
+        )
+
+
+def _validar_especialidad(db: Session, id_especialidad: int) -> None:
+    especialidad = (
+        db.query(Especialidad)
+        .filter(Especialidad.id_especialidad == id_especialidad)
+        .first()
+    )
+    if not especialidad:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Especialidad no encontrada",
         )

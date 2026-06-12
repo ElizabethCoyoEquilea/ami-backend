@@ -1,29 +1,33 @@
-from decimal import Decimal
-
 from fastapi import HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.models.solicitudes.cotizacion import Cotizacion
+from app.models.solicitudes.cotizacion import Invitacion
 from app.models.usuarios.usuario import User
 from app.repositories.cotizaciones_repository import (
-    aceptar_cotizacion_cliente,
-    create_cotizacion_pendiente,
-    get_cotizacion_detalle_by_id,
-    list_cotizaciones_pendientes_by_taller,
-    rechazar_cotizacion_cliente,
-    update_monto_cotizacion_admin,
+    aceptar_invitacion_cliente,
+    create_invitacion_enviada,
+    create_invitacion_pendiente,
+    expire_pending_invitaciones,
+    get_all_invitacion_taller_ids_by_solicitud,
+    get_invitacion_finalizada_by_solicitud,
+    get_invitacion_detalle_by_id,
+    get_pending_invitaciones_by_solicitud,
+    list_solicitud_ids_with_expired_pending_invitaciones,
+    list_invitaciones_pendientes_by_taller,
+    rechazar_invitacion_cliente,
 )
 from app.repositories.solicitudes_repository import get_solicitud_by_id
 from app.repositories.talleres_repository import get_active_taller_by_id
+from app.services.workshop_recommendation_service import recommend_workshops
 from app.websockets.connection_manager import clients_ws_manager
 
 
-def registrar_cotizacion_pendiente(
+def registrar_invitacion_pendiente(
     db: Session,
     id_solicitud: int,
     id_taller: int,
-) -> Cotizacion:
+) -> Invitacion:
     solicitud = get_solicitud_by_id(db, id_solicitud)
     if not solicitud:
         raise HTTPException(
@@ -38,48 +42,150 @@ def registrar_cotizacion_pendiente(
             detail="Taller no encontrado",
         )
 
-    cotizacion_pendiente = (
-        db.query(Cotizacion)
+    invitacion_pendiente = (
+        db.query(Invitacion)
         .filter(
-            Cotizacion.id_solicitud == id_solicitud,
-            Cotizacion.estado.in_(["pendiente", "enviado"]),
+            Invitacion.id_solicitud == id_solicitud,
+            Invitacion.estado.in_(["pendiente", "enviado"]),
         )
         .first()
     )
-    if cotizacion_pendiente:
+    if invitacion_pendiente:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Ya existe una cotizacion pendiente o enviada para esta solicitud",
+            detail="Ya existe una invitacion pendiente o enviada para esta solicitud",
         )
 
-    cotizacion_aceptada = (
-        db.query(Cotizacion)
+    invitacion_aceptada = (
+        db.query(Invitacion)
         .filter(
-            Cotizacion.id_solicitud == id_solicitud,
-            Cotizacion.estado.in_(["aceptada", "aceptado"]),
+            Invitacion.id_solicitud == id_solicitud,
+            Invitacion.estado.in_(["aceptada", "aceptado"]),
         )
         .first()
     )
-    if cotizacion_aceptada:
+    if invitacion_aceptada:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Ya existe una cotizacion aceptada para esta solicitud",
+            detail="Ya existe una invitacion aceptada para esta solicitud",
         )
 
     try:
-        return create_cotizacion_pendiente(db, solicitud, id_taller)
+        return create_invitacion_pendiente(db, solicitud, id_taller)
     except SQLAlchemyError:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="No se pudo crear la cotizacion",
+            detail="No se pudo crear la invitacion",
         )
 
 
-def listar_cotizaciones_pendientes_taller(
+def crear_invitaciones_automaticas_para_solicitud(
+    db: Session,
+    solicitud,
+    top_n: int = 3,
+) -> list[Invitacion]:
+    if solicitud.latitud is None or solicitud.longitud is None:
+        return []
+
+    invited_taller_ids = set(
+        get_all_invitacion_taller_ids_by_solicitud(db, solicitud.id_solicitud)
+    )
+    recomendaciones = recommend_workshops(
+        db=db,
+        client_lat=solicitud.latitud,
+        client_lng=solicitud.longitud,
+        descripcion=solicitud.descripcion,
+        exclude_taller_ids=invited_taller_ids,
+        top_n=top_n,
+    )
+
+    invitaciones: list[Invitacion] = []
+    for taller_info in recomendaciones:
+        try:
+            invitacion = create_invitacion_enviada(
+                db,
+                solicitud,
+                taller_info["id_taller"],
+            )
+            invitaciones.append(invitacion)
+        except SQLAlchemyError:
+            continue
+
+    return invitaciones
+
+
+def refresh_invitaciones_y_generar_siguiente_ronda(
+    db: Session,
+    solicitud,
+    top_n: int = 3,
+    incluir_expiradas: bool = False,
+) -> list[Invitacion] | tuple[list[Invitacion], list[Invitacion]]:
+    expiradas = expire_pending_invitaciones(db, solicitud.id_solicitud)
+
+    def _response(nuevas_invitaciones: list[Invitacion]):
+        if incluir_expiradas:
+            return expiradas, nuevas_invitaciones
+        return nuevas_invitaciones
+
+    if not expiradas:
+        return _response([])
+
+    if solicitud.latitud is None or solicitud.longitud is None:
+        return _response([])
+
+    if get_invitacion_finalizada_by_solicitud(db, solicitud.id_solicitud):
+        return _response([])
+
+    pendientes = get_pending_invitaciones_by_solicitud(db, solicitud.id_solicitud)
+    if pendientes:
+        return _response([])
+
+    invitado_ids = set(
+        get_all_invitacion_taller_ids_by_solicitud(db, solicitud.id_solicitud)
+    )
+    nuevas_recomendaciones = recommend_workshops(
+        db=db,
+        client_lat=solicitud.latitud,
+        client_lng=solicitud.longitud,
+        descripcion=solicitud.descripcion,
+        exclude_taller_ids=invitado_ids,
+        top_n=top_n,
+    )
+    if not nuevas_recomendaciones:
+        solicitud.estado = "sin_cobertura"
+        db.commit()
+        db.refresh(solicitud)
+        return _response([])
+
+    solicitud.ronda_actual = (solicitud.ronda_actual or 1) + 1
+    solicitud.estado = "buscando_taller"
+    db.commit()
+    db.refresh(solicitud)
+
+    nuevas_invitaciones: list[Invitacion] = []
+    for taller_info in nuevas_recomendaciones:
+        try:
+            invitacion = create_invitacion_enviada(
+                db,
+                solicitud,
+                taller_info["id_taller"],
+            )
+            nuevas_invitaciones.append(invitacion)
+        except SQLAlchemyError:
+            continue
+
+    return _response(nuevas_invitaciones)
+
+
+def listar_solicitud_ids_con_invitaciones_vencidas(db: Session) -> list[int]:
+    return list_solicitud_ids_with_expired_pending_invitaciones(db)
+
+
+def listar_invitaciones_pendientes_taller(
     db: Session,
     id_taller: int,
     current_user: User,
-) -> list[Cotizacion]:
+) -> list[Invitacion]:
     taller = get_active_taller_by_id(db, id_taller)
     if not taller or taller.id_usuario != current_user.id_usuario:
         raise HTTPException(
@@ -87,48 +193,47 @@ def listar_cotizaciones_pendientes_taller(
             detail="Taller no encontrado",
         )
 
-    return list_cotizaciones_pendientes_by_taller(db, id_taller)
+    return list_invitaciones_pendientes_by_taller(db, id_taller)
 
 
-def obtener_cotizacion_por_id(
+def obtener_invitacion_por_id(
     db: Session,
-    id_cotizacion: int,
+    id_invitacion: int,
     current_user: User,
-) -> Cotizacion:
-    cotizacion = get_cotizacion_detalle_by_id(db, id_cotizacion)
-    if not cotizacion:
+) -> Invitacion:
+    invitacion = get_invitacion_detalle_by_id(db, id_invitacion)
+    if not invitacion:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Cotizacion no encontrada",
+            detail="Invitacion no encontrada",
         )
 
-    es_admin_taller = bool(cotizacion.taller and cotizacion.taller.id_usuario == current_user.id_usuario)
-
-    cliente = cotizacion.solicitud.vehiculo.cliente if cotizacion.solicitud and cotizacion.solicitud.vehiculo else None
+    es_admin_taller = bool(invitacion.taller and invitacion.taller.id_usuario == current_user.id_usuario)
+    cliente = invitacion.solicitud.vehiculo.cliente if invitacion.solicitud and invitacion.solicitud.vehiculo else None
     es_cliente_dueno = bool(cliente and cliente.id_usuario == current_user.id_usuario)
 
     if not es_admin_taller and not es_cliente_dueno:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Cotizacion no encontrada para el usuario autenticado",
+            detail="Invitacion no encontrada para el usuario autenticado",
         )
 
-    return cotizacion
+    return invitacion
 
 
-async def rechazar_cotizacion_por_solicitud(
+async def rechazar_invitacion_por_solicitud(
     db: Session,
     id_solicitud: int,
-    id_cotizacion: int,
+    id_invitacion: int,
 ) -> dict:
-    cotizacion = get_cotizacion_detalle_by_id(db, id_cotizacion)
-    if not cotizacion or cotizacion.id_solicitud != id_solicitud:
+    invitacion = get_invitacion_detalle_by_id(db, id_invitacion)
+    if not invitacion or invitacion.id_solicitud != id_solicitud:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Cotizacion no encontrada para la solicitud indicada",
+            detail="Invitacion no encontrada para la solicitud indicada",
         )
 
-    cliente = cotizacion.solicitud.vehiculo.cliente if cotizacion.solicitud.vehiculo else None
+    cliente = invitacion.solicitud.vehiculo.cliente if invitacion.solicitud.vehiculo else None
     if not cliente:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -136,11 +241,11 @@ async def rechazar_cotizacion_por_solicitud(
         )
 
     try:
-        cotizacion_rechazada = rechazar_cotizacion_cliente(db, cotizacion)
+        invitacion_rechazada = rechazar_invitacion_cliente(db, invitacion)
     except SQLAlchemyError:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="No se pudo rechazar la cotizacion",
+            detail="No se pudo rechazar la invitacion",
         )
 
     websocket_enviado = await clients_ws_manager.send_to_user(
@@ -148,98 +253,29 @@ async def rechazar_cotizacion_por_solicitud(
         {
             "tipo": "rechazo administrador",
             "data": {
-                "id_solicitud": cotizacion_rechazada.id_solicitud,
-                "id_cotizacion": cotizacion_rechazada.id_cotizacion,
-                "id_taller": cotizacion_rechazada.id_taller,
-                "estado_cotizacion": cotizacion_rechazada.estado,
+                "id_solicitud": invitacion_rechazada.id_solicitud,
+                "id_invitacion": invitacion_rechazada.id_invitacion,
+                "id_taller": invitacion_rechazada.id_taller,
+                "estado_invitacion": invitacion_rechazada.estado,
                 "estado_solicitud": "pendiente",
             },
         },
     )
 
     return {
-        "id_cotizacion": cotizacion_rechazada.id_cotizacion,
-        "id_solicitud": cotizacion_rechazada.id_solicitud,
-        "id_taller": cotizacion_rechazada.id_taller,
-        "monto": cotizacion_rechazada.monto,
-        "estado": cotizacion_rechazada.estado,
+        "id_invitacion": invitacion_rechazada.id_invitacion,
+        "id_solicitud": invitacion_rechazada.id_solicitud,
+        "id_taller": invitacion_rechazada.id_taller,
+        "numero_ronda": invitacion_rechazada.numero_ronda,
+        "estado": invitacion_rechazada.estado,
+        "fecha_hora_envio": invitacion_rechazada.fecha_hora_envio,
+        "fecha_hora_expiracion": invitacion_rechazada.fecha_hora_expiracion,
+        "fecha_hora_respuesta": invitacion_rechazada.fecha_hora_respuesta,
         "websocket_enviado": websocket_enviado,
     }
 
 
-async def enviar_monto_cotizacion_admin(
-    db: Session,
-    id_solicitud: int,
-    id_cotizacion: int,
-    id_vehiculo: int,
-    monto: Decimal,
-    current_user: User,
-) -> dict:
-    cotizacion = get_cotizacion_detalle_by_id(db, id_cotizacion)
-    if not cotizacion:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Cotizacion no encontrada",
-        )
-
-    if cotizacion.id_solicitud != id_solicitud:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Cotizacion no encontrada para la solicitud indicada",
-        )
-
-    if not cotizacion.solicitud or cotizacion.solicitud.id_vehiculo != id_vehiculo:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Solicitud no encontrada para el vehiculo indicado",
-        )
-
-    if not cotizacion.taller or cotizacion.taller.id_usuario != current_user.id_usuario:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Cotizacion no encontrada para el usuario autenticado",
-        )
-
-    cliente = cotizacion.solicitud.vehiculo.cliente if cotizacion.solicitud.vehiculo else None
-    if not cliente:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Cliente no encontrado para el vehiculo indicado",
-        )
-
-    id_usuario_cliente = cliente.id_usuario
-
-    try:
-        cotizacion_actualizada = update_monto_cotizacion_admin(db, cotizacion, monto)
-    except SQLAlchemyError:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="No se pudo actualizar la cotizacion",
-        )
-
-    websocket_enviado = await clients_ws_manager.send_to_user(
-        id_usuario_cliente,
-        {
-            "tipo": "cotizacion del administrador",
-            "data": {
-                "id_solicitud": id_solicitud,
-                "id_cotizacion": id_cotizacion,
-                "monto": float(cotizacion_actualizada.monto),
-            },
-        },
-    )
-
-    return {
-        "id_cotizacion": cotizacion_actualizada.id_cotizacion,
-        "id_solicitud": cotizacion_actualizada.id_solicitud,
-        "id_taller": cotizacion_actualizada.id_taller,
-        "monto": cotizacion_actualizada.monto,
-        "estado": cotizacion_actualizada.estado,
-        "websocket_enviado": websocket_enviado,
-    }
-
-
-def procesar_respuesta_cotizacion_cliente(
+def procesar_respuesta_invitacion_cliente(
     db: Session,
     id_usuario_cliente: int,
     mensaje: dict,
@@ -247,7 +283,7 @@ def procesar_respuesta_cotizacion_cliente(
     tipo = mensaje.get("tipo")
     data = mensaje.get("data") or {}
 
-    if tipo not in {"aceptar_cotizacion", "rechazar_cotizacion"}:
+    if tipo not in {"aceptar_invitacion", "rechazar_invitacion"}:
         return {
             "tipo": "error",
             "data": {
@@ -256,94 +292,94 @@ def procesar_respuesta_cotizacion_cliente(
         }
 
     id_solicitud = data.get("id_solicitud")
-    id_cotizacion = data.get("id_cotizacion")
+    id_invitacion = data.get("id_invitacion")
 
-    if not id_solicitud or not id_cotizacion:
+    if not id_solicitud or not id_invitacion:
         return {
             "tipo": "error",
             "data": {
-                "mensaje": "id_solicitud e id_cotizacion son obligatorios",
+                "mensaje": "id_solicitud e id_invitacion son obligatorios",
             },
         }
 
     try:
         id_solicitud = int(id_solicitud)
-        id_cotizacion = int(id_cotizacion)
+        id_invitacion = int(id_invitacion)
     except (TypeError, ValueError):
         return {
             "tipo": "error",
             "data": {
-                "mensaje": "id_solicitud e id_cotizacion deben ser numeros",
+                "mensaje": "id_solicitud e id_invitacion deben ser numeros",
             },
         }
 
-    cotizacion = get_cotizacion_detalle_by_id(db, id_cotizacion)
-    if not cotizacion or cotizacion.id_solicitud != id_solicitud:
+    invitacion = get_invitacion_detalle_by_id(db, id_invitacion)
+    if not invitacion or invitacion.id_solicitud != id_solicitud:
         return {
             "tipo": "error",
             "data": {
-                "mensaje": "Cotizacion no encontrada",
+                "mensaje": "Invitacion no encontrada",
             },
         }
 
-    cliente = cotizacion.solicitud.vehiculo.cliente if cotizacion.solicitud.vehiculo else None
+    cliente = invitacion.solicitud.vehiculo.cliente if invitacion.solicitud.vehiculo else None
     if not cliente or cliente.id_usuario != id_usuario_cliente:
         return {
             "tipo": "error",
             "data": {
-                "mensaje": "Cotizacion no pertenece al cliente autenticado",
+                "mensaje": "Invitacion no pertenece al cliente autenticado",
             },
         }
 
-    if cotizacion.estado not in {"pendiente", "enviado"}:
+    if invitacion.estado not in {"pendiente", "enviado"}:
         return {
             "tipo": "error",
             "data": {
-                "mensaje": "La cotizacion ya fue respondida",
+                "mensaje": "La invitacion ya fue respondida",
             },
         }
 
-    if tipo == "aceptar_cotizacion":
+    if tipo == "aceptar_invitacion":
         try:
-            asignacion = aceptar_cotizacion_cliente(db, cotizacion)
+            asignacion = aceptar_invitacion_cliente(db, invitacion)
         except SQLAlchemyError:
             return {
                 "tipo": "error",
                 "data": {
-                    "mensaje": "No se pudo aceptar la cotizacion",
+                    "mensaje": "No se pudo aceptar la invitacion",
                 },
             }
 
         return {
-            "tipo": "cotizacion_aceptada",
+            "tipo": "invitacion_aceptada",
             "data": {
-                "id_solicitud": cotizacion.id_solicitud,
-                "id_cotizacion": cotizacion.id_cotizacion,
-                "id_taller": cotizacion.id_taller,
+                "id_solicitud": invitacion.id_solicitud,
+                "id_invitacion": invitacion.id_invitacion,
+                "id_taller": invitacion.id_taller,
                 "id_asignacion": asignacion.id_asignacion,
-                "estado_cotizacion": "aceptada",
+                "estado_invitacion": "aceptada",
                 "estado_solicitud": "aceptada",
                 "estado_asignacion": asignacion.estado,
             },
         }
 
     try:
-        cotizacion_rechazada = rechazar_cotizacion_cliente(db, cotizacion)
+        invitacion_rechazada = rechazar_invitacion_cliente(db, invitacion)
     except SQLAlchemyError:
         return {
             "tipo": "error",
             "data": {
-                "mensaje": "No se pudo rechazar la cotizacion",
+                "mensaje": "No se pudo rechazar la invitacion",
             },
         }
 
     return {
-        "tipo": "cotizacion_rechazada",
+        "tipo": "invitacion_rechazada",
         "data": {
-            "id_solicitud": cotizacion_rechazada.id_solicitud,
-            "id_cotizacion": cotizacion_rechazada.id_cotizacion,
-            "id_taller": cotizacion_rechazada.id_taller,
-            "estado_cotizacion": "rechazada",
+            "id_solicitud": invitacion_rechazada.id_solicitud,
+            "id_invitacion": invitacion_rechazada.id_invitacion,
+            "id_taller": invitacion_rechazada.id_taller,
+            "estado_invitacion": "rechazada",
             "estado_solicitud": "pendiente",
         },
     }

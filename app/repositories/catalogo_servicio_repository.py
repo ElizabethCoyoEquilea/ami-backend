@@ -1,7 +1,8 @@
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.models.talleres.catalogo_servicio import CatalogoServicio
+from app.models.talleres.especialidad import Especialidad
 from app.models.talleres.taller import Taller
 from app.schemas.talleres.catalogo_servicio_schema import (
     CatalogoServicioCreate,
@@ -34,6 +35,7 @@ def get_catalogo_servicio_by_id(
 ) -> CatalogoServicio | None:
     return (
         db.query(CatalogoServicio)
+        .options(joinedload(CatalogoServicio.especialidad))
         .filter(CatalogoServicio.id_catalogo_servicio == id_catalogo_servicio)
         .first()
     )
@@ -45,6 +47,7 @@ def get_active_catalogo_servicio_by_id(
 ) -> CatalogoServicio | None:
     return (
         db.query(CatalogoServicio)
+        .options(joinedload(CatalogoServicio.especialidad))
         .filter(
             CatalogoServicio.id_catalogo_servicio == id_catalogo_servicio,
             CatalogoServicio.estado == "activo",
@@ -56,6 +59,7 @@ def get_active_catalogo_servicio_by_id(
 def list_active_catalogo_servicios(db: Session) -> list[CatalogoServicio]:
     return (
         db.query(CatalogoServicio)
+        .options(joinedload(CatalogoServicio.especialidad))
         .filter(CatalogoServicio.estado == "activo")
         .order_by(CatalogoServicio.id_catalogo_servicio)
         .all()
@@ -68,6 +72,7 @@ def list_active_catalogo_servicios_by_usuario(
 ) -> list[CatalogoServicio]:
     return (
         db.query(CatalogoServicio)
+        .options(joinedload(CatalogoServicio.especialidad))
         .join(Taller, CatalogoServicio.id_taller == Taller.id_taller)
         .filter(
             Taller.id_usuario == id_usuario,
@@ -85,6 +90,7 @@ def list_active_catalogo_servicios_by_taller(
 ) -> list[CatalogoServicio]:
     return (
         db.query(CatalogoServicio)
+        .options(joinedload(CatalogoServicio.especialidad))
         .filter(
             CatalogoServicio.id_taller == id_taller,
             CatalogoServicio.estado == "activo",
@@ -100,6 +106,7 @@ def list_catalogo_servicios_by_taller(
 ) -> list[CatalogoServicio]:
     return (
         db.query(CatalogoServicio)
+        .options(joinedload(CatalogoServicio.especialidad))
         .filter(CatalogoServicio.id_taller == id_taller)
         .order_by(CatalogoServicio.estado)
         .all()
@@ -136,3 +143,11 @@ def logical_delete_catalogo_servicio(
     except SQLAlchemyError:
         db.rollback()
         raise
+
+
+def list_especialidades(db: Session) -> list[Especialidad]:
+    return (
+        db.query(Especialidad)
+        .order_by(Especialidad.nombre)
+        .all()
+    )

@@ -17,6 +17,7 @@ class Taller(Base):
     longitud = Column(Float, nullable=True)
     latitud = Column(Float, nullable=True)
     qr = Column(String(1000), nullable=True)
+    tiempo_respuesta = Column(Integer, nullable=True)
     horario_inicio = Column(Time, nullable=False)
     horario_fin = Column(Time, nullable=False)
     estado = Column(String(10), nullable=False, default="cerrado")
@@ -25,7 +26,7 @@ class Taller(Base):
     usuario = relationship("User", back_populates="talleres")
     catalogo_servicios = relationship("CatalogoServicio", back_populates="taller")
     proveedores_servicio = relationship("ProveedorServicio", back_populates="taller")
-    cotizaciones = relationship("Cotizacion", back_populates="taller", cascade="all, delete-orphan")
+    invitaciones = relationship("Invitacion", back_populates="taller", cascade="all, delete-orphan")
     asignaciones = relationship("Asignacion", back_populates="taller", cascade="all, delete-orphan")
 
     __table_args__ = (

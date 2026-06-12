@@ -1,6 +1,8 @@
 from datetime import date, time
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
+from app.schemas.usuarios.proveedor_especialidad_schema import ProveedorEspecialidadResponse
+
 
 # ==============================
 # SCHEMAS PERSONA
@@ -164,7 +166,7 @@ class CurrentProviderServicioResponse(BaseModel):
     id_usuario: int
     id_taller: int
     estado: str | None = None
-    especialidad: str | None = None
+    proveedor_especialidades: list[ProveedorEspecialidadResponse] = Field(default_factory=list)
 
     class Config:
         from_attributes = True
