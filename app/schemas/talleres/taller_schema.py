@@ -228,6 +228,8 @@ class AsignacionSolicitudTallerResponse(BaseModel):
 class SolicitudTallerResponse(BaseModel):
     id_solicitud: int
     id_vehiculo: int
+    id_cliente: int | None = None
+    nombre_cliente: str | None = None
     descripcion: str
     latitud: float | None
     direccion: str | None

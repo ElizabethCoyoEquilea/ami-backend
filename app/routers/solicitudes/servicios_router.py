@@ -9,6 +9,11 @@ from app.schemas.solicitudes.calificacion_schema import (
     CalificacionResponse,
     ServicioTieneCalificacionResponse,
 )
+from app.schemas.solicitudes.calificacion_cliente_schema import (
+    CalificacionClienteCreate,
+    CalificacionClienteResponse,
+    ServicioTieneCalificacionClienteResponse,
+)
 from app.schemas.solicitudes.servicio_schema import (
     DetalleServicioCreate,
     DetalleServicioResponse,
@@ -20,6 +25,10 @@ from app.schemas.solicitudes.servicio_schema import (
 from app.services.calificaciones_service import (
     registrar_calificacion_servicio,
     servicio_tiene_calificacion,
+)
+from app.services.calificaciones_cliente_service import (
+    registrar_calificacion_cliente,
+    servicio_tiene_calificacion_cliente,
 )
 from app.services.servicios_service import (
     anular_servicio,
@@ -130,6 +139,33 @@ def verificar_servicio_tiene_calificacion(
     current_user: User = Depends(get_current_user),
 ):
     return servicio_tiene_calificacion(db, id_servicio)
+
+
+@router.post(
+    "/{id_servicio}/calificacion-cliente",
+    response_model=CalificacionClienteResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def calificar_cliente(
+    id_servicio: int,
+    calificacion_data: CalificacionClienteCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return registrar_calificacion_cliente(db, id_servicio, calificacion_data, current_user.id_usuario)
+
+
+@router.get(
+    "/{id_servicio}/tiene-calificacion-cliente",
+    response_model=ServicioTieneCalificacionClienteResponse,
+    status_code=status.HTTP_200_OK,
+)
+def verificar_servicio_tiene_calificacion_cliente(
+    id_servicio: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return servicio_tiene_calificacion_cliente(db, id_servicio)
 
 
 @router.post(

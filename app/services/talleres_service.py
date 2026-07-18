@@ -100,9 +100,18 @@ def _solicitud_taller_response(
             2,
         )
 
+    id_cliente = None
+    nombre_cliente = None
+    if solicitud.vehiculo and solicitud.vehiculo.cliente:
+        id_cliente = solicitud.vehiculo.cliente.id_cliente
+        if solicitud.vehiculo.cliente.usuario and solicitud.vehiculo.cliente.usuario.persona:
+            nombre_cliente = solicitud.vehiculo.cliente.usuario.persona.nombre_completo
+
     return {
         "id_solicitud": solicitud.id_solicitud,
         "id_vehiculo": solicitud.id_vehiculo,
+        "id_cliente": id_cliente,
+        "nombre_cliente": nombre_cliente,
         "descripcion": solicitud.descripcion,
         "latitud": solicitud.latitud,
         "direccion": solicitud.direccion,

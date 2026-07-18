@@ -18,6 +18,7 @@ class Servicio(Base):
     asignacion = relationship("Asignacion", back_populates="servicios")
     pago = relationship("Pago", back_populates="servicio", uselist=False)
     calificacion = relationship("Calificacion", back_populates="servicio", uselist=False, cascade="all, delete-orphan")
+    calificacion_cliente = relationship("CalificacionCliente", back_populates="servicio", uselist=False, cascade="all, delete-orphan")
     detalles_servicio = relationship("DetalleServicio", back_populates="servicio", cascade="all, delete-orphan")
 
     @property

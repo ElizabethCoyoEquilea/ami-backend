@@ -12,6 +12,7 @@ from app.core.schema_updates import apply_schema_updates
 from app.routers.usuarios.usuarios_router import router as usuarios_router
 from app.routers.usuarios.auth_router import router as auth_router
 from app.routers.usuarios.vehiculos_router import router as vehiculos_router
+from app.routers.usuarios.clientes_router import router as clientes_router
 from app.routers.solicitudes.solicitudes_router import router as solicitudes_router
 from app.routers.solicitudes.cotizaciones_router import router as cotizaciones_router
 from app.routers.solicitudes.servicios_router import router as servicios_router
@@ -79,6 +80,7 @@ async def shutdown() -> None:
 app.include_router(auth_router)
 app.include_router(usuarios_router)
 app.include_router(vehiculos_router)
+app.include_router(clientes_router)
 app.include_router(solicitudes_router)
 app.include_router(cotizaciones_router)
 app.include_router(servicios_router)
