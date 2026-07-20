@@ -89,7 +89,7 @@ def listar_pagos_cliente(db: Session, id_usuario: int) -> list[dict]:
     return response
 
 
-def modificar_pago(db: Session, id_pago: int, pago_data: PagoUpdate):
+async def modificar_pago(db: Session, id_pago: int, pago_data: PagoUpdate):
     pago = get_pago_by_id(db, id_pago)
     if not pago:
         raise HTTPException(
@@ -98,7 +98,17 @@ def modificar_pago(db: Session, id_pago: int, pago_data: PagoUpdate):
         )
 
     try:
-        return update_pago(db, pago, pago_data)
+        pago_actualizado = update_pago(db, pago, pago_data)
+        
+        # Notify client that the service is completed/paid
+        if (pago_actualizado and 
+            pago_actualizado.servicio and 
+            pago_actualizado.servicio.asignacion and 
+            pago_actualizado.servicio.asignacion.solicitud):
+            from app.services.notificaciones_service import notificar_servicio_finalizado_a_cliente
+            await notificar_servicio_finalizado_a_cliente(pago_actualizado.servicio.asignacion.solicitud)
+
+        return pago_actualizado
     except SQLAlchemyError:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

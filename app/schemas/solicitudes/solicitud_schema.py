@@ -41,6 +41,7 @@ class SolicitudAsignacionResponse(BaseModel):
     fecha_fin: datetime | None = None
     tiempo_llegada: Decimal | None = None
     estado: str
+    estado_servicio: str | None = None
 
     class Config:
         from_attributes = True

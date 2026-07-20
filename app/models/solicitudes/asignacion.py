@@ -20,3 +20,11 @@ class Asignacion(Base):
     taller = relationship("Taller", back_populates="asignaciones")
     proveedor_servicio = relationship("ProveedorServicio", back_populates="asignaciones")
     servicios = relationship("Servicio", back_populates="asignacion", cascade="all, delete-orphan")
+
+    @property
+    def estado_servicio(self) -> str | None:
+        if self.servicios:
+            latest = sorted(self.servicios, key=lambda s: s.id_servicio, reverse=True)[0]
+            return latest.estado
+        return None
+

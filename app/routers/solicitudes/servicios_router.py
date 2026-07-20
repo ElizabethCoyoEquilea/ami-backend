@@ -173,13 +173,13 @@ def verificar_servicio_tiene_calificacion_cliente(
     response_model=ServicioFacturaResponse,
     status_code=status.HTTP_201_CREATED,
 )
-def crear_detalle_servicio(
+async def crear_detalle_servicio(
     id_servicio: int,
     detalles_data: list[DetalleServicioCreate],
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return registrar_detalle_servicio(db, id_servicio, detalles_data, current_user.id_usuario)
+    return await registrar_detalle_servicio(db, id_servicio, detalles_data, current_user.id_usuario)
 
 
 @router.get(

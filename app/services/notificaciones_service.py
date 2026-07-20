@@ -231,3 +231,56 @@ async def _notificar_talleres_por_invitaciones(db: Session, invitaciones, payloa
                 id_taller,
                 enviado,
             )
+
+
+async def notificar_pendiente_pago_a_cliente(solicitud) -> bool:
+    cliente = solicitud.vehiculo.cliente if solicitud.vehiculo else None
+    if not cliente:
+        logger.warning(
+            "notificacion_pendiente_pago_sin_cliente id_solicitud=%s",
+            solicitud.id_solicitud,
+        )
+        return False
+
+    payload = {
+        "tipo": "pendiente_pago",
+        "data": {
+            "id_solicitud": solicitud.id_solicitud,
+        },
+    }
+    enviado = await clients_ws_manager.send_to_user(cliente.id_usuario, payload)
+    logger.info(
+        "notificacion_cliente_ws tipo=%s user=%s id_solicitud=%s enviado=%s",
+        payload["tipo"],
+        cliente.id_usuario,
+        solicitud.id_solicitud,
+        enviado,
+    )
+    return enviado
+
+
+async def notificar_servicio_finalizado_a_cliente(solicitud) -> bool:
+    cliente = solicitud.vehiculo.cliente if solicitud.vehiculo else None
+    if not cliente:
+        logger.warning(
+            "notificacion_finalizado_sin_cliente id_solicitud=%s",
+            solicitud.id_solicitud,
+        )
+        return False
+
+    payload = {
+        "tipo": "servicio_finalizado",
+        "data": {
+            "id_solicitud": solicitud.id_solicitud,
+        },
+    }
+    enviado = await clients_ws_manager.send_to_user(cliente.id_usuario, payload)
+    logger.info(
+        "notificacion_cliente_ws tipo=%s user=%s id_solicitud=%s enviado=%s",
+        payload["tipo"],
+        cliente.id_usuario,
+        solicitud.id_solicitud,
+        enviado,
+    )
+    return enviado
+

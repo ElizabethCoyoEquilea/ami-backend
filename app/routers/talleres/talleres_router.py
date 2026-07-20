@@ -121,6 +121,7 @@ def obtener_talleres_recomendados(
         db=db,
         client_lat=solicitud.latitud,
         client_lng=solicitud.longitud,
+        descripcion=solicitud.descripcion,
     )
 
 

@@ -107,3 +107,35 @@ def update_solicitud_ai_analysis(
     except SQLAlchemyError:
         db.rollback()
         raise
+
+
+def update_solicitud_recomendacion(
+    db: Session,
+    solicitud: Solicitud,
+    recomendacion: str,
+) -> Solicitud:
+    try:
+        solicitud.recomendacion = recomendacion
+        db.commit()
+        db.refresh(solicitud)
+        return solicitud
+    except SQLAlchemyError:
+        db.rollback()
+        raise
+
+
+def update_solicitud_fallback(
+    db: Session,
+    solicitud: Solicitud,
+    recomendacion: str,
+    prioridad: str,
+) -> Solicitud:
+    try:
+        solicitud.recomendacion = recomendacion
+        solicitud.prioridad = prioridad
+        db.commit()
+        db.refresh(solicitud)
+        return solicitud
+    except SQLAlchemyError:
+        db.rollback()
+        raise

@@ -33,10 +33,10 @@ def obtener_pago_por_id(
 
 
 @router.patch("/{id_pago}", response_model=PagoResponse, status_code=status.HTTP_200_OK)
-def actualizar_pago(
+async def actualizar_pago(
     id_pago: int,
     pago_data: PagoUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return modificar_pago(db, id_pago, pago_data)
+    return await modificar_pago(db, id_pago, pago_data)

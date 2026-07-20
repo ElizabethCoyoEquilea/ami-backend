@@ -178,7 +178,7 @@ def anular_servicio(
         )
 
 
-def registrar_detalle_servicio(
+async def registrar_detalle_servicio(
     db: Session,
     id_servicio: int,
     detalles_data: list[DetalleServicioCreate],
@@ -202,6 +202,14 @@ def registrar_detalle_servicio(
 
     try:
         servicio_actualizado = create_detalle_for_servicio(db, id_servicio, detalles_data)
+        
+        # Notify client that the service is pending payment
+        if (servicio_actualizado and 
+            servicio_actualizado.asignacion and 
+            servicio_actualizado.asignacion.solicitud):
+            from app.services.notificaciones_service import notificar_pendiente_pago_a_cliente
+            await notificar_pendiente_pago_a_cliente(servicio_actualizado.asignacion.solicitud)
+
         return {
             "servicio": servicio_actualizado,
             "detalles": servicio_actualizado.detalles_servicio,

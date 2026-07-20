@@ -50,6 +50,7 @@ def _solicitud_response(solicitud) -> dict:
             "fecha_fin": asignacion_actual.fecha_fin,
             "tiempo_llegada": asignacion_actual.tiempo_llegada,
             "estado": asignacion_actual.estado,
+            "estado_servicio": asignacion_actual.estado_servicio,
         }
 
     return {
@@ -159,6 +160,17 @@ async def registrar_solicitud(
             )
     except Exception:
         logger.exception("No se pudo analizar la solicitud con OpenAI id_solicitud=%s", solicitud.id_solicitud)
+
+    # Generar recomendacion usando el motor de reglas (Rule Engine) si no existe una recomendacion previa
+    if not solicitud.recomendacion:
+        try:
+            from app.services.diagnostico_service import generar_recomendacion, generar_prioridad
+            from app.repositories.solicitudes_repository import update_solicitud_fallback
+            reco_text = generar_recomendacion(solicitud)
+            prioridad_text = generar_prioridad(solicitud)
+            solicitud = update_solicitud_fallback(db, solicitud, reco_text, prioridad_text)
+        except Exception:
+            logger.exception("Error al generar recomendacion inteligente para id_solicitud=%s", solicitud.id_solicitud)
 
     invitaciones = []
     try:
