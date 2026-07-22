@@ -216,10 +216,10 @@ def _sumar_ingresos_taller_en_rango(
         .join(Asignacion, Asignacion.id_asignacion == Servicio.id_asignacion)
         .filter(
             Asignacion.id_taller == id_taller,
-            Servicio.estado == "pagado",
-            Servicio.fecha_fin >= inicio,
-            Servicio.fecha_fin < fin,
-            Pago.estado == "pagado",
+            func.lower(Servicio.estado).in_(["pagado", "finalizado", "completado"]),
+            func.coalesce(Servicio.fecha_fin, Servicio.fecha_inicio, Asignacion.fecha_inicio) >= inicio - timedelta(hours=4),
+            func.coalesce(Servicio.fecha_fin, Servicio.fecha_inicio, Asignacion.fecha_inicio) <= fin + timedelta(hours=4),
+            func.lower(Pago.estado).in_(["pagado", "completado"]),
         )
         .scalar()
     )
@@ -379,7 +379,7 @@ def obtener_dashboard_taller_hoy(db: Session, id_taller: int, id_usuario: int) -
         db.query(func.count(ProveedorServicio.id_proveedor))
         .filter(
             ProveedorServicio.id_taller == id_taller,
-            ProveedorServicio.estado == "Disponible",
+            func.lower(ProveedorServicio.estado).in_(["disponible", "activo"]),
         )
         .scalar()
         or 0
@@ -392,9 +392,9 @@ def obtener_dashboard_taller_hoy(db: Session, id_taller: int, id_usuario: int) -
         .join(Asignacion, Asignacion.id_asignacion == Servicio.id_asignacion)
         .filter(
             Asignacion.id_taller == id_taller,
-            Servicio.fecha_fin >= inicio_hoy,
-            Servicio.fecha_fin < fin_hoy,
-            Servicio.estado == "pagado",
+            func.lower(Servicio.estado).in_(["pagado", "finalizado", "completado"]),
+            func.coalesce(Servicio.fecha_fin, Servicio.fecha_inicio, Asignacion.fecha_inicio) >= inicio_hoy - timedelta(hours=4),
+            func.coalesce(Servicio.fecha_fin, Servicio.fecha_inicio, Asignacion.fecha_inicio) <= fin_hoy + timedelta(hours=4),
         )
         .scalar()
         or 0

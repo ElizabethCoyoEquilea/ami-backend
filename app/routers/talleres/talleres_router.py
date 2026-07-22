@@ -321,6 +321,7 @@ async def websocket_dashboard_taller(
         logger.info("dashboard_ws_open user=%s id_taller=%s intervalo=%s", id_usuario, id_taller, intervalo)
 
         while True:
+            db.expire_all()
             resumen = obtener_dashboard_taller_hoy(db, id_taller, id_usuario)
             await websocket.send_json(
                 jsonable_encoder({
