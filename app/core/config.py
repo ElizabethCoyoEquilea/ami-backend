@@ -33,7 +33,7 @@ class Settings:
 
     INVITATION_ACCEPT_URL_BASE = os.getenv(
         "INVITATION_ACCEPT_URL_BASE",
-        "http://127.0.0.1:8000/auth/talleres/invitaciones/aceptar",
+        "https://ami-backend-ricardo.duckdns.org/auth/talleres/invitaciones/aceptar",
     )
     INVITATION_EXPIRATION_HOURS = int(os.getenv("INVITATION_EXPIRATION_HOURS", "48"))
 
