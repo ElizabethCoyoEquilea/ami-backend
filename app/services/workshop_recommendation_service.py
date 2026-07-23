@@ -115,7 +115,7 @@ def recommend_workshops(
             ProveedorServicio.id_taller,
             func.count(ProveedorServicio.id_proveedor).label("total"),
         )
-        .filter(func.lower(ProveedorServicio.estado) == "disponible")
+        .filter(func.coalesce(func.lower(ProveedorServicio.estado), "disponible").in_(["disponible", "activo", "online"]))
         .group_by(ProveedorServicio.id_taller)
         .subquery()
     )

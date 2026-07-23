@@ -379,7 +379,7 @@ def obtener_dashboard_taller_hoy(db: Session, id_taller: int, id_usuario: int) -
         db.query(func.count(ProveedorServicio.id_proveedor))
         .filter(
             ProveedorServicio.id_taller == id_taller,
-            func.lower(ProveedorServicio.estado).in_(["disponible", "activo"]),
+            func.coalesce(func.lower(ProveedorServicio.estado), 'disponible').in_(["disponible", "activo", "online"]),
         )
         .scalar()
         or 0

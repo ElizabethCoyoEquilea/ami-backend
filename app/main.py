@@ -13,6 +13,7 @@ from app.routers.usuarios.usuarios_router import router as usuarios_router
 from app.routers.usuarios.auth_router import router as auth_router
 from app.routers.usuarios.vehiculos_router import router as vehiculos_router
 from app.routers.usuarios.clientes_router import router as clientes_router
+from app.routers.usuarios.proveedores_router import router as proveedores_router
 from app.routers.solicitudes.solicitudes_router import router as solicitudes_router
 from app.routers.solicitudes.cotizaciones_router import router as cotizaciones_router
 from app.routers.solicitudes.servicios_router import router as servicios_router
@@ -59,12 +60,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+async def _init_db_async() -> None:
+    try:
+        await asyncio.to_thread(Base.metadata.create_all, bind=engine)
+        await asyncio.to_thread(apply_schema_updates)
+        await asyncio.to_thread(run_seeds)
+    except Exception as exc:
+        logging.warning("Error en inicializacion de base de datos background: %s", exc)
+
+
 @app.on_event("startup")
 async def startup() -> None:
     global invitaciones_scheduler_task
-    Base.metadata.create_all(bind=engine)
-    apply_schema_updates()
-    run_seeds()
+    asyncio.create_task(_init_db_async())
     invitaciones_scheduler_task = asyncio.create_task(
         ejecutar_scheduler_invitaciones(intervalo_segundos=30)
     )
@@ -81,6 +89,7 @@ app.include_router(auth_router)
 app.include_router(usuarios_router)
 app.include_router(vehiculos_router)
 app.include_router(clientes_router)
+app.include_router(proveedores_router)
 app.include_router(solicitudes_router)
 app.include_router(cotizaciones_router)
 app.include_router(servicios_router)
